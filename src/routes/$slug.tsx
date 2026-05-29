@@ -639,15 +639,15 @@ function TenantPublicPage() {
             )}
           </div>
 
-            {bookingStep === 2 && selectedTime && (
-              <div className="p-4 border-t bg-muted/30">
-                <Button className="w-full h-12 text-lg font-bold" onClick={() => setBookingStep(3)}>
-                  Continuar
-                </Button>
-              </div>
-            )}
+          {bookingStep === 2 && selectedTime && (
+            <div className="p-4 border-t bg-muted/30">
+              <Button className="w-full h-12 text-lg font-bold" onClick={() => setBookingStep(3)}>
+                Continuar
+              </Button>
+            </div>
+          )}
 
-            {bookingStep === 3 && (
+          {bookingStep === 3 && (
               <div className="p-4 space-y-6">
                 <div className="space-y-3">
                   <div 
