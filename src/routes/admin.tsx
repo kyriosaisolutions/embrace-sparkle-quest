@@ -185,8 +185,7 @@ function AdminAgendaPage() {
   }, []);
 
   const handleStatusChange = (id: string, newStatus: string) => {
-    setAgendaData(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
-    toast.success(`Status atualizado para ${newStatus}`);
+    updateStatusMutation.mutate({ id, status: newStatus });
   };
 
   return (
