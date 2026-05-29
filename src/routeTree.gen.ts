@@ -9,9 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as MinhaAreaRouteImport } from './routes/minha-area'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 
+const MinhaAreaRoute = MinhaAreaRouteImport.update({
+  id: '/minha-area',
+  path: '/minha-area',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SlugRoute = SlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -26,31 +32,42 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
+  '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
+  '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
+  '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$slug'
+  fullPaths: '/' | '/$slug' | '/minha-area'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$slug'
-  id: '__root__' | '/' | '/$slug'
+  to: '/' | '/$slug' | '/minha-area'
+  id: '__root__' | '/' | '/$slug' | '/minha-area'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
+  MinhaAreaRoute: typeof MinhaAreaRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/minha-area': {
+      id: '/minha-area'
+      path: '/minha-area'
+      fullPath: '/minha-area'
+      preLoaderRoute: typeof MinhaAreaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$slug': {
       id: '/$slug'
       path: '/$slug'
@@ -71,6 +88,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
+  MinhaAreaRoute: MinhaAreaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
