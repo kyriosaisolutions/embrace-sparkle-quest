@@ -125,6 +125,19 @@ function MyAreaPage() {
     });
   };
 
+  const handleReviewSubmit = async () => {
+    setIsSubmitting(true);
+    // Mock API call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setReviewingAppointment(null);
+      setRating(0);
+      setComment("");
+      setRecommended(false);
+      toast.success("Obrigado pela sua avaliação!");
+    }, 1000);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "confirmed": return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Confirmado</Badge>;
