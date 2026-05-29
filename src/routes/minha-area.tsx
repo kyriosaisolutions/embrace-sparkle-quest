@@ -77,17 +77,19 @@ const MOCK_HISTORY = [
     id: "h1",
     tenant: { name: "Barbearia do João", slug: "barbearia-joao" },
     service: { name: "Barba Tradicional", price_cents: 3500 },
-    professional: { name: "Felipe Oliveira" },
-    starts_at: new Date(Date.now() - 86400000 * 15),
-    status: "completed"
+    professional: { name: "Felipe Oliveira", id: "p2" },
+    starts_at: new Date(Date.now() - 86400000 * 2),
+    status: "completed",
+    has_review: false
   },
   {
     id: "h2",
     tenant: { name: "Barbearia do João", slug: "barbearia-joao" },
     service: { name: "Corte Masculino", price_cents: 4500 },
-    professional: { name: "Ricardo Silva" },
+    professional: { name: "Ricardo Silva", id: "p1" },
     starts_at: new Date(Date.now() - 86400000 * 45),
-    status: "completed"
+    status: "completed",
+    has_review: true
   }
 ];
 
@@ -110,6 +112,11 @@ const MOCK_FAVORITE_TENANTS = [
 
 function MyAreaPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [reviewingAppointment, setReviewingAppointment] = useState<any>(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [recommended, setRecommended] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toLocaleString("pt-BR", {
