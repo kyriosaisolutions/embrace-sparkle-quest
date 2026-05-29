@@ -11,11 +11,13 @@ import {
   Accessibility, 
   Clock, 
   CreditCard,
-  ChevronRight
+  ChevronRight,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/$slug")({
@@ -104,6 +106,25 @@ const MOCK_SERVICES = [
   },
 ];
 
+const MOCK_PROFESSIONALS = [
+  {
+    id: "d1a3e5b7-4c1d-4f1e-8a5b-9c8d7e6f5a4b",
+    name: "Ricardo Silva",
+    role: "Barbeiro Master",
+    photo_url: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
+    recommendations_count: 45,
+    services: ["Corte Masculino", "Barba Tradicional", "Combo: Corte + Barba"]
+  },
+  {
+    id: "e2b4f6c8-5d2e-5a2f-9b6c-0d9e8f7a6b5c",
+    name: "Felipe Oliveira",
+    role: "Especialista em Barba",
+    photo_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
+    recommendations_count: 28,
+    services: ["Barba Tradicional", "Combo: Corte + Barba"]
+  }
+];
+
 function TenantPublicPage() {
   const { slug } = Route.useParams();
   const [isLoggedIn] = useState(false); // Placeholder for auth check
@@ -117,6 +138,7 @@ function TenantPublicPage() {
 
   const categories = Array.from(new Set(MOCK_SERVICES.map(s => s.category)));
   const featuredServices = MOCK_SERVICES.filter(s => s.featured);
+  const professionals = MOCK_PROFESSIONALS.sort((a, b) => b.recommendations_count - a.recommendations_count);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -196,6 +218,50 @@ function TenantPublicPage() {
               ))}
             </div>
           </section>
+
+          {/* Professionals Section */}
+          {professionals.length > 1 && (
+            <section>
+              <h2 className="text-2xl font-bold mb-6">Nossa Equipe</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {professionals.map(pro => (
+                  <Card key={pro.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex gap-4">
+                        <Avatar className="w-16 h-16 border-2 border-primary/10">
+                          <AvatarImage src={pro.photo_url} alt={pro.name} className="object-cover" />
+                          <AvatarFallback>{pro.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                            <h3 className="font-bold text-lg leading-tight">{pro.name}</h3>
+                            <div className="flex items-center text-rose-500 text-sm font-semibold">
+                              <Heart className="w-4 h-4 mr-1 fill-current" />
+                              {pro.recommendations_count}
+                            </div>
+                          </div>
+                          <p className="text-primary font-medium text-sm">{pro.role}</p>
+                          <div className="mt-3">
+                            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">Especialidades</p>
+                            <div className="flex flex-wrap gap-1">
+                              {pro.services.map(svc => (
+                                <Badge key={svc} variant="secondary" className="text-[10px] py-0 px-1.5">
+                                  {svc}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <Button className="w-full mt-6" variant="outline" size="sm">
+                        Ver disponibilidades
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* All Services by Category */}
           <section>
