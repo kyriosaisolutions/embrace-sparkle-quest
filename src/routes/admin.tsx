@@ -284,6 +284,155 @@ function AdminAgendaPage() {
           </>
         )}
 
+          </>
+        )}
+
+        {activeTab === "finance" && (
+          <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full space-y-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold">Financeiro & Comissões</h1>
+                <p className="text-muted-foreground text-sm">Controle de caixa, conciliação e extrato de profissionais.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="gap-2"><History className="h-4 w-4" /> Histórico</Button>
+                <Button className="gap-2"><Plus className="h-4 w-4" /> Lançamento Manual</Button>
+              </div>
+            </div>
+
+            {/* Dashboard Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><DollarSign className="h-6 w-6" /></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Faturamento (Hoje)</p><p className="text-xl font-bold text-slate-900">R$ 1.240,00</p></div>
+              </CardContent></Card>
+              <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center"><Wallet className="h-6 w-6" /></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Comissões Pendentes</p><p className="text-xl font-bold text-slate-900">R$ 432,00</p></div>
+              </CardContent></Card>
+              <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center"><CreditCard className="h-6 w-6" /></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">A Receber (Cartão)</p><p className="text-xl font-bold text-slate-900">R$ 3.450,00</p></div>
+              </CardContent></Card>
+              <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-full flex items-center justify-center"><TrendingUp className="h-6 w-6" /></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Ticket Médio</p><p className="text-xl font-bold text-slate-900">R$ 65,00</p></div>
+              </CardContent></Card>
+            </div>
+
+            <Tabs defaultValue="cash_flow">
+              <TabsList className="mb-6">
+                <TabsTrigger value="cash_flow">Fluxo de Caixa</TabsTrigger>
+                <TabsTrigger value="commissions">Comissões por Profissional</TabsTrigger>
+                <TabsTrigger value="logs">Logs de Auditoria</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="cash_flow" className="space-y-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-lg">Movimentações de Hoje</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Hora</TableHead>
+                          <TableHead>Cliente / Serviço</TableHead>
+                          <TableHead>Forma</TableHead>
+                          <TableHead>Valor</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {[
+                          { time: "09:45", client: "João Silva", service: "Corte", method: "PIX", value: 45.00, status: "paid" },
+                          { time: "10:30", client: "Pedro Alves", service: "Barba", method: "Dinheiro", value: 35.00, status: "pending" },
+                          { time: "11:15", client: "Mariana C.", service: "Luzes", method: "Cartão (Online)", value: 180.00, status: "paid" },
+                        ].map((item, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono text-xs">{item.time}</TableCell>
+                            <TableCell><div><p className="font-bold text-sm">{item.client}</p><p className="text-xs text-muted-foreground">{item.service}</p></div></TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px] uppercase font-bold">{item.method}</Badge></TableCell>
+                            <TableCell className="font-bold">R$ {item.value.toFixed(2)}</TableCell>
+                            <TableCell>{item.status === 'paid' ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100">Pago</Badge> : <Badge variant="secondary">Pendente</Badge>}</TableCell>
+                            <TableCell className="text-right"><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="commissions" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {team.map(pro => (
+                    <Card key={pro.id} className="hover:border-primary/50 transition-colors">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10"><AvatarImage src={pro.photo} /></Avatar>
+                          <div><CardTitle className="text-sm">{pro.name}</CardTitle><CardDescription className="text-xs">Meta mensal: 85%</CardDescription></div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="flex justify-between items-end border-b pb-4">
+                          <div><p className="text-[10px] text-muted-foreground uppercase font-bold">A pagar (Bruto)</p><p className="text-2xl font-bold text-slate-900">R$ 845,50</p></div>
+                          <Button size="sm" className="gap-2 h-8 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Fechar Período</Button>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Serviços concluídos</span><span className="font-bold">24</span></div>
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Comissão média</span><span className="font-bold">30.5%</span></div>
+                        </div>
+                        <Button variant="outline" className="w-full text-xs h-8 gap-2"><Eye className="h-3.5 w-3.5" /> Detalhar Extrato</Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="logs">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <div><CardTitle className="text-lg">Audit Log: Cálculos de Comissão</CardTitle><CardDescription>Registros imutáveis gerados na conclusão do serviço.</CardDescription></div>
+                      <Button variant="outline" size="sm" className="gap-2"><FileText className="h-4 w-4" /> Exportar CSV</Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Data/Hora</TableHead>
+                          <TableHead>Profissional</TableHead>
+                          <TableHead>Preço Base</TableHead>
+                          <TableHead>Taxa (%)</TableHead>
+                          <TableHead>Comissão</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {[
+                          { date: "29/05 14:15", pro: "Ricardo Silva", base: 45.00, rate: 30, value: 13.50, paid: true },
+                          { date: "29/05 15:30", pro: "Maria Clara", base: 180.00, rate: 40, value: 54.00, paid: false },
+                          { date: "29/05 16:45", pro: "Ricardo Silva", base: 45.00, rate: 30, value: 13.50, paid: false },
+                        ].map((log, i) => (
+                          <TableRow key={i}>
+                            <TableCell className="font-mono text-[10px]">{log.date}</TableCell>
+                            <TableCell className="text-sm font-medium">{log.pro}</TableCell>
+                            <TableCell className="text-sm">R$ {log.base.toFixed(2)}</TableCell>
+                            <TableCell className="text-sm">{log.rate}%</TableCell>
+                            <TableCell className="text-sm font-bold text-primary">R$ {log.value.toFixed(2)}</TableCell>
+                            <TableCell>{log.paid ? <Badge className="bg-slate-100 text-slate-600 border-none">Pago</Badge> : <Badge className="bg-blue-50 text-blue-600 border-none">Pendente</Badge>}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+
         {activeTab === "settings" && (
           <div className="flex-1 overflow-y-auto p-8 max-w-4xl mx-auto w-full">
             <h1 className="text-2xl font-bold mb-8">Configurações do Salão</h1>
