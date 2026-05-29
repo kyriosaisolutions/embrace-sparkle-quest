@@ -169,32 +169,56 @@ export type Database = {
       }
       services: {
         Row: {
+          category: string | null
           created_at: string | null
           description: string | null
+          discount_days: number[] | null
+          discount_percent: number | null
           duration_minutes: number
+          enabled: boolean | null
           id: string
+          image_url: string | null
           name: string
           price: number
+          price_cents: number | null
+          price_from: boolean | null
+          sort_order: number | null
           tenant_id: string
           updated_at: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string | null
           description?: string | null
+          discount_days?: number[] | null
+          discount_percent?: number | null
           duration_minutes: number
+          enabled?: boolean | null
           id?: string
+          image_url?: string | null
           name: string
           price: number
+          price_cents?: number | null
+          price_from?: boolean | null
+          sort_order?: number | null
           tenant_id: string
           updated_at?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string | null
           description?: string | null
+          discount_days?: number[] | null
+          discount_percent?: number | null
           duration_minutes?: number
+          enabled?: boolean | null
           id?: string
+          image_url?: string | null
           name?: string
           price?: number
+          price_cents?: number | null
+          price_from?: boolean | null
+          sort_order?: number | null
           tenant_id?: string
           updated_at?: string | null
         }
