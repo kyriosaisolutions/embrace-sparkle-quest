@@ -283,6 +283,59 @@ function MyAreaPage() {
           </div>
         </section>
       </main>
+
+      <Dialog open={!!reviewingAppointment} onOpenChange={(open) => !open && setReviewingAppointment(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Avaliar serviço</DialogTitle>
+            <DialogDescription>
+              Conte como foi sua experiência na {reviewingAppointment?.tenant?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-6 space-y-6">
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-medium">Sua nota</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button key={s} onClick={() => setRating(s)} className={cn("transition-transform hover:scale-110", rating >= s ? "text-yellow-400" : "text-slate-200")}>
+                    <Star className={cn("w-8 h-8", rating >= s && "fill-current")} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Comentário (opcional)</Label>
+              <Textarea 
+                placeholder="Ex: Corte impecável, voltarei sempre!" 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold">Recomendar profissional</p>
+                <p className="text-xs text-muted-foreground">Isso ajuda a reputação do {reviewingAppointment?.professional?.name}</p>
+              </div>
+              <button 
+                onClick={() => setRecommended(!recommended)}
+                className={cn("p-2 rounded-full transition-colors", recommended ? "bg-rose-50 text-rose-500" : "bg-slate-50 text-slate-400")}
+              >
+                <Heart className={cn("w-6 h-6", recommended && "fill-current")} />
+              </button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewingAppointment(null)}>Cancelar</Button>
+            <Button onClick={handleReviewSubmit} disabled={rating === 0 || isSubmitting}>
+              {isSubmitting ? "Enviando..." : "Publicar Avaliação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
