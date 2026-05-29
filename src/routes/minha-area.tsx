@@ -136,6 +136,9 @@ function MyAreaPage() {
       setRecommended(false);
       toast.success("Obrigado pela sua avaliação!");
     }, 1000);
+    
+    // In a real scenario, we would also trigger a WhatsApp notification
+    // after 6h using a database edge function or job queue.
   };
 
   const getStatusBadge = (status: string) => {
