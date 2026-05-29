@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Star, 
   Instagram, 
@@ -17,7 +17,10 @@ import {
   Calendar as CalendarIcon,
   Users,
   CheckCircle2,
-  MessageCircle
+  MessageCircle,
+  Copy,
+  ExternalLink,
+  QrCode
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +35,9 @@ import {
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/$slug")({
   component: TenantPublicPage,
@@ -80,6 +85,7 @@ const MOCK_SERVICES = [
     duration_minutes: 45,
     category: "Corte",
     discount_percent: 0,
+    deposit_percent: 0,
     image_url: "https://images.unsplash.com/photo-1621605815841-2179b7977491?w=400&h=300&fit=crop",
     featured: true,
   },
@@ -91,6 +97,7 @@ const MOCK_SERVICES = [
     duration_minutes: 30,
     category: "Barba",
     discount_percent: 10,
+    deposit_percent: 0,
     image_url: "https://images.unsplash.com/photo-1599351431247-f132f03af0d6?w=400&h=300&fit=crop",
     featured: true,
   },
@@ -102,6 +109,7 @@ const MOCK_SERVICES = [
     duration_minutes: 75,
     category: "Tratamento",
     discount_percent: 15,
+    deposit_percent: 20,
     image_url: "https://images.unsplash.com/photo-1503951914875-452162b0f3f1?w=400&h=300&fit=crop",
     featured: true,
   },
@@ -113,6 +121,7 @@ const MOCK_SERVICES = [
     duration_minutes: 120,
     category: "Coloração",
     discount_percent: 0,
+    deposit_percent: 0,
     image_url: "https://images.unsplash.com/photo-1560869713-7d0a294308ed?w=400&h=300&fit=crop",
     featured: false,
   },
@@ -124,6 +133,7 @@ const MOCK_SERVICES = [
     duration_minutes: 40,
     category: "Tratamento",
     discount_percent: 0,
+    deposit_percent: 0,
     image_url: "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400&h=300&fit=crop",
     featured: false,
   },
@@ -158,10 +168,15 @@ function TenantPublicPage() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<string | "no_preference">("no_preference");
   
+  // Auth & Payment states
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"pix" | "card">("pix");
+  const [pixTimeLeft, setPixTimeLeft] = useState(600); // 10 minutes
+  const [isPixConfirmed, setIsPixConfirmed] = useState(false);
+  const [protocol, setProtocol] = useState("");
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toLocaleString("pt-BR", {
@@ -234,7 +249,45 @@ function TenantPublicPage() {
   };
 
   const handleVerifyOtp = () => {
-    if (otp.length === 6) setBookingStep(5);
+    if (otp.length === 6) {
+      if (selectedService?.deposit_percent && selectedService.deposit_percent > 0) {
+        setBookingStep(5);
+      } else {
+        handleConfirmBooking();
+      }
+    }
+  };
+
+  const handleConfirmBooking = () => {
+    // Generate a random protocol for mock
+    const newProtocol = Math.random().toString(36).substring(2, 10).toUpperCase();
+    setProtocol(newProtocol);
+    setBookingStep(6);
+  };
+
+  useEffect(() => {
+    let timer: any;
+    if (bookingStep === 5 && paymentMethod === "pix" && pixTimeLeft > 0 && !isPixConfirmed) {
+      timer = setInterval(() => {
+        setPixTimeLeft((prev) => prev - 1);
+      }, 1000);
+      
+      // Mock automatic confirmation after 15 seconds
+      if (pixTimeLeft === 585) {
+        setTimeout(() => {
+          setIsPixConfirmed(true);
+          toast.success("Pagamento PIX confirmado!");
+          setTimeout(() => handleConfirmBooking(), 1500);
+        }, 500);
+      }
+    }
+    return () => clearInterval(timer);
+  }, [bookingStep, paymentMethod, pixTimeLeft, isPixConfirmed]);
+
+  const formatTimeLeft = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -338,7 +391,12 @@ function TenantPublicPage() {
             <div className="flex items-center gap-2">
               {bookingStep > 1 && <Button variant="ghost" size="icon" onClick={() => setBookingStep(prev => prev - 1)}><ChevronLeft /></Button>}
               <DialogTitle>
-                {bookingStep === 1 && "Selecione o serviço"}{bookingStep === 2 && "Data e horário"}{bookingStep === 3 && "Profissional"}{bookingStep === 4 && "Identificação"}
+                {bookingStep === 1 && "Selecione o serviço"}
+                {bookingStep === 2 && "Data e horário"}
+                {bookingStep === 3 && "Profissional"}
+                {bookingStep === 4 && "Identificação"}
+                {bookingStep === 5 && "Pagamento do sinal"}
+                {bookingStep === 6 && "Agendamento Confirmado"}
               </DialogTitle>
             </div>
           </DialogHeader>
@@ -413,6 +471,123 @@ function TenantPublicPage() {
                     <Button className="w-full" onClick={handleVerifyOtp}>Confirmar</Button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {bookingStep === 5 && selectedService && (
+              <div className="p-6 space-y-6">
+                <div className="bg-muted/50 p-4 rounded-lg space-y-3">
+                  <h3 className="font-bold text-sm uppercase text-muted-foreground tracking-wider">Resumo do agendamento</h3>
+                  <div className="space-y-1">
+                    <p className="font-bold">{selectedService.name}</p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4" /> {selectedDate?.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {selectedTime}
+                    </p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" /> {selectedProfessional === "no_preference" ? "Sem preferência" : professionals.find(p => p.id === selectedProfessional)?.name}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t flex justify-between items-center">
+                    <span className="text-sm font-medium">Total</span>
+                    <span className="font-bold text-lg">{formatPrice(selectedService.price_cents)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-bold text-primary uppercase tracking-tight">Você paga agora (Sinal de {selectedService.deposit_percent}%)</p>
+                      <p className="text-2xl font-bold text-primary">{formatPrice((selectedService.price_cents * (selectedService.deposit_percent || 0)) / 100)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] text-muted-foreground uppercase">Restante no salão</p>
+                      <p className="font-bold">{formatPrice(selectedService.price_cents - (selectedService.price_cents * (selectedService.deposit_percent || 0)) / 100)}</p>
+                    </div>
+                  </div>
+
+                  <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-2 gap-3">
+                    <div>
+                      <RadioGroupItem value="pix" id="pix" className="sr-only" />
+                      <Label htmlFor="pix" className={cn(
+                        "flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-all gap-2",
+                        paymentMethod === "pix" ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}>
+                        <QrCode className="h-6 w-6" />
+                        <span className="font-bold">PIX</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="card" id="card" className="sr-only" />
+                      <Label htmlFor="card" className={cn(
+                        "flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-all gap-2",
+                        paymentMethod === "card" ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                      )}>
+                        <CreditCard className="h-6 w-6" />
+                        <span className="font-bold">Cartão</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+
+                  {paymentMethod === "pix" && (
+                    <div className="flex flex-col items-center text-center space-y-4 pt-2">
+                      <div className="bg-white p-4 border rounded-xl">
+                        <img 
+                          src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=00020126330014br.gov.bcb.pix0111123456789015204000053039865802BR5913BarbeariaJoao6009SaoPaulo62070503***6304" 
+                          alt="QR Code PIX Mock" 
+                          className={cn("w-40 h-40", isPixConfirmed && "opacity-20")}
+                        />
+                      </div>
+                      {!isPixConfirmed ? (
+                        <>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-orange-600 flex items-center justify-center gap-2">
+                              <Clock className="h-4 w-4" /> Expira em {formatTimeLeft(pixTimeLeft)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">Aguardando confirmação do pagamento...</p>
+                          </div>
+                          <Button variant="outline" className="w-full flex gap-2" onClick={() => toast.success("Código Copiado!")}>
+                            <Copy className="h-4 w-4" /> Copiar código PIX
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 py-4">
+                          <div className="h-12 w-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+                            <CheckCircle2 className="h-8 w-8" />
+                          </div>
+                          <p className="font-bold text-green-600">Pagamento confirmado!</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {paymentMethod === "card" && (
+                    <div className="bg-muted p-8 rounded-lg text-center space-y-3">
+                      <CreditCard className="h-10 w-10 mx-auto text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground italic">Integração com gateway de cartão disponível na versão pro.</p>
+                      <Button className="w-full" onClick={handleConfirmBooking}>Pagar agora</Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {bookingStep === 6 && (
+              <div className="p-8 flex flex-col items-center text-center space-y-6">
+                <div className="h-20 w-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center animate-in zoom-in duration-300">
+                  <CheckCircle2 className="h-12 w-12" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold">Agendamento Confirmado!</h3>
+                  <p className="text-muted-foreground">Você receberá todos os detalhes e o lembrete no seu WhatsApp.</p>
+                </div>
+                <div className="bg-muted p-4 rounded-lg w-full">
+                  <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-1">Protocolo</p>
+                  <p className="text-xl font-mono font-bold">#{protocol}</p>
+                </div>
+                <div className="w-full space-y-3">
+                  <Button className="w-full h-12">Ver meus agendamentos</Button>
+                  <Button variant="ghost" className="w-full" onClick={() => setIsBookingOpen(false)}>Fechar</Button>
+                </div>
               </div>
             )}
           </div>
