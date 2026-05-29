@@ -6,7 +6,7 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const getTenantBySlug = createServerFn("GET", async (slug: string) => {
+export const getTenantBySlug = createServerFn({ method: "GET" }).handler(async ({ data: slug }: { data: string }) => {
   const { data, error } = await supabase
     .from("tenants")
     .select(`
