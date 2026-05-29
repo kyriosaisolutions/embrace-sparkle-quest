@@ -594,7 +594,7 @@ function AdminAgendaPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {team.map(pro => (
+              {professionals.map((pro: any) => (
                 <Card key={pro.id} className="overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex gap-4 items-start mb-6">
