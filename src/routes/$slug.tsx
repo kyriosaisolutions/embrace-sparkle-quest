@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   Star, 
   Instagram, 
@@ -12,12 +12,23 @@ import {
   Clock, 
   CreditCard,
   ChevronRight,
-  Heart
+  Heart,
+  ChevronLeft,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger 
+} from "@/components/ui/dialog";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/$slug")({
@@ -128,6 +139,11 @@ const MOCK_PROFESSIONALS = [
 function TenantPublicPage() {
   const { slug } = Route.useParams();
   const [isLoggedIn] = useState(false); // Placeholder for auth check
+  const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [bookingStep, setBookingStep] = useState(1);
+  const [selectedService, setSelectedService] = useState<typeof MOCK_SERVICES[0] | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toLocaleString("pt-BR", {
@@ -139,6 +155,70 @@ function TenantPublicPage() {
   const categories = Array.from(new Set(MOCK_SERVICES.map(s => s.category)));
   const featuredServices = MOCK_SERVICES.filter(s => s.featured);
   const professionals = MOCK_PROFESSIONALS.sort((a, b) => b.recommendations_count - a.recommendations_count);
+
+  const nextBookingDays = useMemo(() => {
+    const days = [];
+    for (let i = 0; i < 30; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() + i);
+      days.push(date);
+    }
+    return days;
+  }, []);
+
+  const availableTimes = useMemo(() => {
+    if (!selectedDate) return [];
+    
+    const dayOfWeek = selectedDate.getDay();
+    const config = (MOCK_TENANT.working_hours as any)[dayOfWeek.toString()];
+    
+    if (!config || config.closed) return [];
+
+    const times = [];
+    const [startH, startM] = config.open.split(":").map(Number);
+    const [endH, endM] = config.close.split(":").map(Number);
+    
+    const current = new Date(selectedDate);
+    current.setHours(startH, startM, 0, 0);
+    
+    const end = new Date(selectedDate);
+    end.setHours(endH, endM, 0, 0);
+
+    const now = new Date();
+
+    while (current < end) {
+      const timeStr = current.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      
+      // Disable if in the past
+      const isPast = current < now;
+      
+      if (!isPast) {
+        times.push(timeStr);
+      }
+      
+      current.setMinutes(current.getMinutes() + 30); // 30 min slots
+    }
+
+    return times;
+  }, [selectedDate]);
+
+  const handleOpenBooking = (service?: typeof MOCK_SERVICES[0]) => {
+    if (service) {
+      setSelectedService(service);
+      setBookingStep(2);
+    } else {
+      setSelectedService(null);
+      setBookingStep(1);
+    }
+    setIsBookingOpen(true);
+  };
+
+  const resetBooking = () => {
+    setBookingStep(1);
+    setSelectedService(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+  };
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -169,7 +249,7 @@ function TenantPublicPage() {
             </div>
           </div>
           <div className="hidden md:block">
-            <Button size="lg" variant="secondary" className="font-bold text-lg px-8">
+            <Button size="lg" variant="secondary" className="font-bold text-lg px-8" onClick={() => handleOpenBooking()}>
               Agendar Agora
             </Button>
           </div>
@@ -211,7 +291,7 @@ function TenantPublicPage() {
                         {service.price_from && <span className="text-xs font-normal text-muted-foreground mr-1">A partir de</span>}
                         {formatPrice(service.price_cents)}
                       </span>
-                      <Button size="sm">Agendar</Button>
+                      <Button size="sm" onClick={() => handleOpenBooking(service)}>Agendar</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -272,7 +352,7 @@ function TenantPublicPage() {
                   <h3 className="text-lg font-bold border-b pb-2 mb-4">{category}</h3>
                   <div className="space-y-4">
                     {MOCK_SERVICES.filter(s => s.category === category).map(service => (
-                      <div key={service.id} className="flex items-center justify-between p-4 bg-card rounded-lg border hover:border-primary transition-colors cursor-pointer group">
+                      <div key={service.id} onClick={() => handleOpenBooking(service)} className="flex items-center justify-between p-4 bg-card rounded-lg border hover:border-primary transition-colors cursor-pointer group">
                         <div className="flex-1">
                           <h4 className="font-bold group-hover:text-primary transition-colors">{service.name}</h4>
                           <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
@@ -373,10 +453,154 @@ function TenantPublicPage() {
 
       {/* Sticky Mobile CTA */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t md:hidden z-50">
-        <Button className="w-full h-12 font-bold text-lg">
+        <Button className="w-full h-12 font-bold text-lg" onClick={() => handleOpenBooking()}>
           Agendar Agora
         </Button>
       </div>
+
+      {/* Booking Modal */}
+      <Dialog open={isBookingOpen} onOpenChange={(open) => {
+        setIsBookingOpen(open);
+        if (!open) resetBooking();
+      }}>
+        <DialogContent className="sm:max-w-[450px] p-0 gap-0 overflow-hidden flex flex-col max-h-[90vh]">
+          <DialogHeader className="p-4 border-b bg-muted/30">
+            <div className="flex items-center gap-2">
+              {bookingStep > 1 && (
+                <Button variant="ghost" size="icon" onClick={() => setBookingStep(prev => prev - 1)} className="h-8 w-8">
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+              )}
+              <DialogTitle className="text-lg">
+                {bookingStep === 1 ? "Selecione o serviço" : "Data e horário"}
+              </DialogTitle>
+            </div>
+          </DialogHeader>
+
+          {selectedService && (
+            <div className="bg-primary/5 p-3 px-4 border-b flex items-center justify-between text-sm">
+              <span className="font-semibold text-primary truncate max-w-[200px]">{selectedService.name}</span>
+              <span className="text-muted-foreground">{formatPrice(selectedService.price_cents)} • {selectedService.duration_minutes} min</span>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto">
+            {bookingStep === 1 && (
+              <div className="p-4 space-y-3">
+                {MOCK_SERVICES.map(service => (
+                  <div 
+                    key={service.id} 
+                    onClick={() => {
+                      setSelectedService(service);
+                      setBookingStep(2);
+                    }}
+                    className={cn(
+                      "p-4 border rounded-lg cursor-pointer transition-all hover:border-primary flex justify-between items-center group",
+                      selectedService?.id === service.id && "border-primary bg-primary/5"
+                    )}
+                  >
+                    <div>
+                      <h4 className="font-bold group-hover:text-primary">{service.name}</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">{service.duration_minutes} min • {formatPrice(service.price_cents)}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {bookingStep === 2 && (
+              <div className="flex flex-col h-full">
+                {/* Calendar Strip */}
+                <div className="p-4 border-b">
+                  <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4" /> Próximas datas
+                  </p>
+                  <ScrollArea className="w-full whitespace-nowrap">
+                    <div className="flex gap-2 pb-2">
+                      {nextBookingDays.map((date, idx) => {
+                        const dayOfWeek = date.getDay();
+                        const isClosed = (MOCK_TENANT.working_hours as any)[dayOfWeek.toString()].closed;
+                        const isSelected = selectedDate?.toDateString() === date.toDateString();
+
+                        return (
+                          <button
+                            key={idx}
+                            disabled={isClosed}
+                            onClick={() => {
+                              setSelectedDate(date);
+                              setSelectedTime(null);
+                            }}
+                            className={cn(
+                              "flex flex-col items-center justify-center min-w-[60px] h-[72px] rounded-lg border transition-all",
+                              isClosed && "opacity-30 cursor-not-allowed bg-muted",
+                              isSelected && "border-primary bg-primary text-primary-foreground",
+                              !isClosed && !isSelected && "hover:border-primary"
+                            )}
+                          >
+                            <span className="text-[10px] font-bold uppercase">
+                              {date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                            </span>
+                            <span className="text-lg font-bold">
+                              {date.getDate()}
+                            </span>
+                            <span className="text-[10px]">
+                              {date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <ScrollBar orientation="horizontal" />
+                  </ScrollArea>
+                </div>
+
+                {/* Times Grid */}
+                <div className="p-4 flex-1">
+                  {!selectedDate ? (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-12">
+                      <CalendarIcon className="h-12 w-12 opacity-20 mb-2" />
+                      <p>Selecione um dia para ver horários</p>
+                    </div>
+                  ) : availableTimes.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {availableTimes.map(time => (
+                        <button
+                          key={time}
+                          onClick={() => setSelectedTime(time)}
+                          className={cn(
+                            "py-2 rounded-md border text-sm font-medium transition-all text-center",
+                            selectedTime === time 
+                              ? "bg-orange-500 border-orange-500 text-white font-bold" 
+                              : "hover:border-primary hover:text-primary"
+                          )}
+                        >
+                          {time}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 px-4">
+                      <p className="text-muted-foreground mb-2">Sem horários disponíveis para este dia.</p>
+                      <Button variant="link" onClick={() => setSelectedDate(nextBookingDays[idx => idx > 0])}>
+                        Ver próximas vagas
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {bookingStep === 2 && selectedTime && (
+            <div className="p-4 border-t bg-muted/30">
+              <Button className="w-full h-12 text-lg font-bold">
+                Confirmar horário
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
