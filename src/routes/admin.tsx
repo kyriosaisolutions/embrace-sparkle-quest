@@ -32,7 +32,8 @@ import {
   History,
   FileText,
   Eye,
-  Check
+  Check,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,6 +70,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/server/functions/admin";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -104,11 +107,44 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AdminAgendaPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isOffline, setIsOffline] = useState(false);
-  const [agendaData, setAgendaData] = useState(MOCK_AGENDA);
+  
+  // Real Tenant Context (Barbearia do Joao ID from seed)
+  const tenantId = "7b2d56e2-6e2a-4c12-8f9d-16a7f0e34c56";
+
+  const { data: adminData, isLoading: isLoadingAdmin } = useQuery({
+    queryKey: ["adminFullData", tenantId],
+    queryFn: () => getTenantFullData({ data: tenantId }),
+  });
+
+  const { data: agendaRaw = [], isLoading: isLoadingAgenda } = useQuery({
+    queryKey: ["adminAgenda", tenantId, selectedDate.toISOString().split('T')[0]],
+    queryFn: () => getAdminAgenda({ data: { tenant_id: tenantId, date: selectedDate.toISOString() } }),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (vars: { id: string, status: string }) => updateAppointmentStatus({ data: vars }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminAgenda"] });
+      toast.success("Status atualizado!");
+    }
+  });
+
+  const agendaData = useMemo(() => {
+    return agendaRaw.map((apt: any) => ({
+      id: apt.id,
+      professional_id: apt.professional_id,
+      client: apt.clients?.name || "Convidado",
+      service: apt.services?.name,
+      time: new Date(apt.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      duration: apt.services?.duration_minutes || 30,
+      status: apt.status
+    }));
+  }, [agendaRaw]);
 
   // Settings states
   const [setupStep, setSetupTab] = useState(1);
@@ -121,13 +157,12 @@ function AdminAgendaPage() {
     cancellation_fee: 0
   });
 
-  const categories = ["Corte", "Barba", "Tratamento", "Coloração"];
-  const [services, setServices] = useState([
-    { id: "s1", name: "Corte Masculino", category: "Corte", price: 45, duration: 45, deposit: 0 },
-    { id: "s2", name: "Barba Tradicional", category: "Barba", price: 35, duration: 30, deposit: 0 },
-  ]);
+  const categories = useMemo(() => {
+    if (!adminData?.services) return ["Corte", "Barba", "Tratamento", "Coloração"];
+    return Array.from(new Set(adminData.services.map((s: any) => s.category)));
+  }, [adminData]);
 
-  const [team, setTeam] = useState(ADMIN_PROFESSIONALS);
+  const professionals = useMemo(() => adminData?.professionals || [], [adminData]);
 
   // Monitor online/offline status
   useEffect(() => {
@@ -150,8 +185,7 @@ function AdminAgendaPage() {
   }, []);
 
   const handleStatusChange = (id: string, newStatus: string) => {
-    setAgendaData(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
-    toast.success(`Status atualizado para ${newStatus}`);
+    updateStatusMutation.mutate({ id, status: newStatus });
   };
 
   return (
@@ -218,29 +252,29 @@ function AdminAgendaPage() {
 
             {/* Schedule Grid */}
             <div className="flex-1 overflow-x-auto flex flex-col bg-white">
-              <div className="flex border-b sticky top-0 bg-white z-20">
-                <div className="w-16 shrink-0 bg-slate-50 border-r" />
-                {ADMIN_PROFESSIONALS.map(pro => (
-                  <div key={pro.id} className="flex-1 min-w-[280px] p-4 flex items-center gap-3 border-r">
-                    <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={pro.photo} /><AvatarFallback>{pro.name[0]}</AvatarFallback></Avatar>
-                    <div><h3 className="font-bold text-sm text-slate-900">{pro.name}</h3><p className="text-[10px] text-slate-500 uppercase tracking-wider">{pro.role}</p></div>
-                  </div>
-                ))}
-              </div>
+            <div className="flex border-b sticky top-0 bg-white z-20">
+              <div className="w-16 shrink-0 bg-slate-50 border-r" />
+              {professionals.map((pro: any) => (
+                <div key={pro.id} className="flex-1 min-w-[280px] p-4 flex items-center gap-3 border-r">
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={pro.photo_url} /><AvatarFallback>{pro.name[0]}</AvatarFallback></Avatar>
+                  <div><h3 className="font-bold text-sm text-slate-900">{pro.name}</h3><p className="text-[10px] text-slate-500 uppercase tracking-wider">{pro.role}</p></div>
+                </div>
+              ))}
+            </div>
 
-              <div className="flex-1 relative">
-                <div className="flex h-full">
-                  <div className="w-16 shrink-0 bg-slate-50 border-r flex flex-col">
+            <div className="flex-1 relative">
+              <div className="flex h-full">
+                <div className="w-16 shrink-0 bg-slate-50 border-r flex flex-col">
+                  {timeSlots.map(time => (
+                    <div key={time} className="h-24 border-b p-2 text-[10px] font-bold text-slate-400 text-center">{time}</div>
+                  ))}
+                </div>
+
+                {professionals.map((pro: any) => (
+                  <div key={pro.id} className="flex-1 min-w-[280px] border-r relative group">
                     {timeSlots.map(time => (
-                      <div key={time} className="h-24 border-b p-2 text-[10px] font-bold text-slate-400 text-center">{time}</div>
+                      <div key={time} className="h-24 border-b border-slate-100 group-hover:bg-slate-50/50 transition-colors" />
                     ))}
-                  </div>
-
-                  {ADMIN_PROFESSIONALS.map(pro => (
-                    <div key={pro.id} className="flex-1 min-w-[280px] border-r relative group">
-                      {timeSlots.map(time => (
-                        <div key={time} className="h-24 border-b border-slate-100 group-hover:bg-slate-50/50 transition-colors" />
-                      ))}
 
                       {agendaData.filter(item => item.professional_id === pro.id).map(apt => {
                         const [h, m] = apt.time.split(":").map(Number);
@@ -362,7 +396,7 @@ function AdminAgendaPage() {
 
               <TabsContent value="commissions" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {team.map(pro => (
+                  {professionals.map((pro: any) => (
                     <Card key={pro.id} className="hover:border-primary/50 transition-colors">
                       <CardHeader className="pb-4">
                         <div className="flex items-center gap-3">
@@ -529,7 +563,7 @@ function AdminAgendaPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {services.map(svc => (
+              {adminData?.services.map((svc: any) => (
                 <Card key={svc.id} className="group hover:border-primary/50 transition-all">
                   <CardContent className="p-4 flex items-center gap-6">
                     <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400"><Package className="h-5 w-5" /></div>
@@ -560,7 +594,7 @@ function AdminAgendaPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {team.map(pro => (
+              {professionals.map((pro: any) => (
                 <Card key={pro.id} className="overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex gap-4 items-start mb-6">
