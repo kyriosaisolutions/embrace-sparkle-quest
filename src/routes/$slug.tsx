@@ -21,7 +21,8 @@ import {
   MessageCircle,
   Copy,
   ExternalLink,
-  QrCode
+  QrCode,
+  ThumbsUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,8 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle
+  DialogTitle,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";

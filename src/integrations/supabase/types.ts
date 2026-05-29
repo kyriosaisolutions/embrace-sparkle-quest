@@ -21,6 +21,7 @@ export type Database = {
           deposit_cents: number
           deposit_paid_at: string | null
           ends_at: string
+          has_review: boolean | null
           id: string
           notes: string | null
           payment_method: string | null
@@ -39,6 +40,7 @@ export type Database = {
           deposit_cents?: number
           deposit_paid_at?: string | null
           ends_at: string
+          has_review?: boolean | null
           id?: string
           notes?: string | null
           payment_method?: string | null
@@ -57,6 +59,7 @@ export type Database = {
           deposit_cents?: number
           deposit_paid_at?: string | null
           ends_at?: string
+          has_review?: boolean | null
           id?: string
           notes?: string | null
           payment_method?: string | null
@@ -220,6 +223,71 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "professionals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          appointment_id: string
+          client_id: string
+          comment: string | null
+          created_at: string | null
+          id: string
+          professional_id: string
+          rating: number
+          recommended: boolean | null
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id: string
+          client_id: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          professional_id: string
+          rating: number
+          recommended?: boolean | null
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string
+          client_id?: string
+          comment?: string | null
+          created_at?: string | null
+          id?: string
+          professional_id?: string
+          rating?: number
+          recommended?: boolean | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
