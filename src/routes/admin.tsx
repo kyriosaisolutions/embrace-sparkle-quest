@@ -104,7 +104,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AdminAgendaPage() {
-  const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team">("agenda");
+  const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isOffline, setIsOffline] = useState(false);
