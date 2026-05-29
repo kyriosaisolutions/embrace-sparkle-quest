@@ -239,6 +239,11 @@ function MyAreaPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{h.tenant.name}</span>
                       <span className="text-[10px] text-muted-foreground">• {h.starts_at.toLocaleDateString('pt-BR')}</span>
+                      {!h.has_review && h.status === 'completed' && (
+                        <Badge className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 cursor-pointer" onClick={() => setReviewingAppointment(h)}>
+                          <Star className="w-3 h-3 mr-1 fill-current" /> Avaliar
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">{h.service.name} com {h.professional.name}</p>
                   </div>
