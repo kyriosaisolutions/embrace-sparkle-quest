@@ -23,7 +23,16 @@ import {
   Save,
   Trash2,
   Edit2,
-  MoreHorizontal
+  MoreHorizontal,
+  DollarSign,
+  TrendingUp,
+  CreditCard,
+  Wallet,
+  ArrowUpRight,
+  History,
+  FileText,
+  Eye,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,6 +59,14 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 

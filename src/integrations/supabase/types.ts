@@ -147,6 +147,67 @@ export type Database = {
           },
         ]
       }
+      commission_logs: {
+        Row: {
+          appointment_id: string
+          calculated_at: string | null
+          commission_cents: number
+          commission_rate: number
+          id: string
+          paid: boolean | null
+          paid_at: string | null
+          professional_id: string
+          service_price_cents: number
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id: string
+          calculated_at?: string | null
+          commission_cents: number
+          commission_rate: number
+          id?: string
+          paid?: boolean | null
+          paid_at?: string | null
+          professional_id: string
+          service_price_cents: number
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string
+          calculated_at?: string | null
+          commission_cents?: number
+          commission_rate?: number
+          id?: string
+          paid?: boolean | null
+          paid_at?: string | null
+          professional_id?: string
+          service_price_cents?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_logs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_logs_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professional_breaks: {
         Row: {
           created_at: string | null
@@ -178,6 +239,52 @@ export type Database = {
             columns: ["professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_service_commissions: {
+        Row: {
+          commission_rate: number
+          id: string
+          professional_id: string
+          service_id: string
+          tenant_id: string
+        }
+        Insert: {
+          commission_rate: number
+          id?: string
+          professional_id: string
+          service_id: string
+          tenant_id: string
+        }
+        Update: {
+          commission_rate?: number
+          id?: string
+          professional_id?: string
+          service_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_service_commissions_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_service_commissions_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_service_commissions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
