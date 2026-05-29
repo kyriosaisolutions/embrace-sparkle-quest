@@ -107,11 +107,44 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AdminAgendaPage() {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isOffline, setIsOffline] = useState(false);
-  const [agendaData, setAgendaData] = useState(MOCK_AGENDA);
+  
+  // Real Tenant Context (Barbearia do Joao ID from seed)
+  const tenantId = "7b2d56e2-6e2a-4c12-8f9d-16a7f0e34c56";
+
+  const { data: adminData, isLoading: isLoadingAdmin } = useQuery({
+    queryKey: ["adminFullData", tenantId],
+    queryFn: () => getTenantFullData({ data: tenantId }),
+  });
+
+  const { data: agendaRaw = [], isLoading: isLoadingAgenda } = useQuery({
+    queryKey: ["adminAgenda", tenantId, selectedDate.toISOString().split('T')[0]],
+    queryFn: () => getAdminAgenda({ data: { tenant_id: tenantId, date: selectedDate.toISOString() } }),
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (vars: { id: string, status: string }) => updateAppointmentStatus({ data: vars }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminAgenda"] });
+      toast.success("Status atualizado!");
+    }
+  });
+
+  const agendaData = useMemo(() => {
+    return agendaRaw.map((apt: any) => ({
+      id: apt.id,
+      professional_id: apt.professional_id,
+      client: apt.clients?.name || "Convidado",
+      service: apt.services?.name,
+      time: new Date(apt.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      duration: apt.services?.duration_minutes || 30,
+      status: apt.status
+    }));
+  }, [agendaRaw]);
 
   // Settings states
   const [setupStep, setSetupTab] = useState(1);
@@ -124,13 +157,12 @@ function AdminAgendaPage() {
     cancellation_fee: 0
   });
 
-  const categories = ["Corte", "Barba", "Tratamento", "Coloração"];
-  const [services, setServices] = useState([
-    { id: "s1", name: "Corte Masculino", category: "Corte", price: 45, duration: 45, deposit: 0 },
-    { id: "s2", name: "Barba Tradicional", category: "Barba", price: 35, duration: 30, deposit: 0 },
-  ]);
+  const categories = useMemo(() => {
+    if (!adminData?.services) return ["Corte", "Barba", "Tratamento", "Coloração"];
+    return Array.from(new Set(adminData.services.map((s: any) => s.category)));
+  }, [adminData]);
 
-  const [team, setTeam] = useState(ADMIN_PROFESSIONALS);
+  const professionals = useMemo(() => adminData?.professionals || [], [adminData]);
 
   // Monitor online/offline status
   useEffect(() => {
