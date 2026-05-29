@@ -366,6 +366,30 @@ function TenantPublicPage() {
             </div>
           </section>
 
+          {/* Reviews Section */}
+          <section>
+            <h2 className="text-2xl font-bold mb-6">O que dizem nossos clientes</h2>
+            <div className="space-y-4">
+              {MOCK_REVIEWS.map(review => (
+                <div key={review.id} className="bg-card border rounded-xl p-6 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold">{review.client_name}</p>
+                      <div className="flex gap-0.5 text-yellow-400 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={cn("w-4 h-4", i < review.rating ? "fill-current" : "text-muted")} />
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{review.created_at}</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>
+                </div>
+              ))}
+              <Button variant="ghost" className="w-full text-primary font-bold">Ver todas as avaliações</Button>
+            </div>
+          </section>
+
           {professionals.length > 1 && (
             <section>
               <h2 className="text-2xl font-bold mb-6">Nossa Equipe</h2>
