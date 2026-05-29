@@ -21,7 +21,8 @@ import {
   MessageCircle,
   Copy,
   ExternalLink,
-  QrCode
+  QrCode,
+  ThumbsUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,9 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
@@ -156,6 +159,23 @@ const MOCK_PROFESSIONALS = [
     photo_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
     recommendations_count: 28,
     services: ["Barba Tradicional", "Combo: Corte + Barba"]
+  }
+];
+
+const MOCK_REVIEWS = [
+  {
+    id: "r1",
+    client_name: "Mariana Costa",
+    rating: 5,
+    comment: "Excelente atendimento! O Ricardo é um profissional incrível, muito detalhista.",
+    created_at: "há 2 dias"
+  },
+  {
+    id: "r2",
+    client_name: "Pedro Santos",
+    rating: 4,
+    comment: "Gostei bastante do corte, ambiente muito agradável.",
+    created_at: "há 1 semana"
   }
 ];
 
@@ -344,6 +364,30 @@ function TenantPublicPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+          </section>
+
+          {/* Reviews Section */}
+          <section>
+            <h2 className="text-2xl font-bold mb-6">O que dizem nossos clientes</h2>
+            <div className="space-y-4">
+              {MOCK_REVIEWS.map(review => (
+                <div key={review.id} className="bg-card border rounded-xl p-6 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold">{review.client_name}</p>
+                      <div className="flex gap-0.5 text-yellow-400 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={cn("w-4 h-4", i < review.rating ? "fill-current" : "text-muted")} />
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{review.created_at}</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>
+                </div>
+              ))}
+              <Button variant="ghost" className="w-full text-primary font-bold">Ver todas as avaliações</Button>
             </div>
           </section>
 

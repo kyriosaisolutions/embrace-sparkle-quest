@@ -13,7 +13,10 @@ import {
   XCircle,
   ExternalLink,
   History,
-  Store
+  Store,
+  Star,
+  Heart,
+  MessageSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +27,18 @@ import {
   CollapsibleContent, 
   CollapsibleTrigger 
 } from "@/components/ui/collapsible";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/minha-area")({
   beforeLoad: async () => {
@@ -63,17 +77,19 @@ const MOCK_HISTORY = [
     id: "h1",
     tenant: { name: "Barbearia do João", slug: "barbearia-joao" },
     service: { name: "Barba Tradicional", price_cents: 3500 },
-    professional: { name: "Felipe Oliveira" },
-    starts_at: new Date(Date.now() - 86400000 * 15),
-    status: "completed"
+    professional: { name: "Felipe Oliveira", id: "p2" },
+    starts_at: new Date(Date.now() - 86400000 * 2),
+    status: "completed",
+    has_review: false
   },
   {
     id: "h2",
     tenant: { name: "Barbearia do João", slug: "barbearia-joao" },
     service: { name: "Corte Masculino", price_cents: 4500 },
-    professional: { name: "Ricardo Silva" },
+    professional: { name: "Ricardo Silva", id: "p1" },
     starts_at: new Date(Date.now() - 86400000 * 45),
-    status: "completed"
+    status: "completed",
+    has_review: true
   }
 ];
 
@@ -96,12 +112,33 @@ const MOCK_FAVORITE_TENANTS = [
 
 function MyAreaPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [reviewingAppointment, setReviewingAppointment] = useState<any>(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [recommended, setRecommended] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toLocaleString("pt-BR", {
       style: "currency",
       currency: "BRL",
     });
+  };
+
+  const handleReviewSubmit = async () => {
+    setIsSubmitting(true);
+    // Mock API call
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setReviewingAppointment(null);
+      setRating(0);
+      setComment("");
+      setRecommended(false);
+      toast.success("Obrigado pela sua avaliação!");
+    }, 1000);
+    
+    // In a real scenario, we would also trigger a WhatsApp notification
+    // after 6h using a database edge function or job queue.
   };
 
   const getStatusBadge = (status: string) => {
@@ -205,6 +242,11 @@ function MyAreaPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{h.tenant.name}</span>
                       <span className="text-[10px] text-muted-foreground">• {h.starts_at.toLocaleDateString('pt-BR')}</span>
+                      {!h.has_review && h.status === 'completed' && (
+                        <Badge className="bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 cursor-pointer" onClick={() => setReviewingAppointment(h)}>
+                          <Star className="w-3 h-3 mr-1 fill-current" /> Avaliar
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">{h.service.name} com {h.professional.name}</p>
                   </div>
@@ -244,6 +286,59 @@ function MyAreaPage() {
           </div>
         </section>
       </main>
+
+      <Dialog open={!!reviewingAppointment} onOpenChange={(open) => !open && setReviewingAppointment(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Avaliar serviço</DialogTitle>
+            <DialogDescription>
+              Conte como foi sua experiência na {reviewingAppointment?.tenant?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-6 space-y-6">
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-medium">Sua nota</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <button key={s} onClick={() => setRating(s)} className={cn("transition-transform hover:scale-110", rating >= s ? "text-yellow-400" : "text-slate-200")}>
+                    <Star className={cn("w-8 h-8", rating >= s && "fill-current")} />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Comentário (opcional)</Label>
+              <Textarea 
+                placeholder="Ex: Corte impecável, voltarei sempre!" 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-0.5">
+                <p className="text-sm font-bold">Recomendar profissional</p>
+                <p className="text-xs text-muted-foreground">Isso ajuda a reputação do {reviewingAppointment?.professional?.name}</p>
+              </div>
+              <button 
+                onClick={() => setRecommended(!recommended)}
+                className={cn("p-2 rounded-full transition-colors", recommended ? "bg-rose-50 text-rose-500" : "bg-slate-50 text-slate-400")}
+              >
+                <Heart className={cn("w-6 h-6", recommended && "fill-current")} />
+              </button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewingAppointment(null)}>Cancelar</Button>
+            <Button onClick={handleReviewSubmit} disabled={rating === 0 || isSubmitting}>
+              {isSubmitting ? "Enviando..." : "Publicar Avaliação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
