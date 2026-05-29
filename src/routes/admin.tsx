@@ -252,29 +252,29 @@ function AdminAgendaPage() {
 
             {/* Schedule Grid */}
             <div className="flex-1 overflow-x-auto flex flex-col bg-white">
-              <div className="flex border-b sticky top-0 bg-white z-20">
-                <div className="w-16 shrink-0 bg-slate-50 border-r" />
-                {ADMIN_PROFESSIONALS.map(pro => (
-                  <div key={pro.id} className="flex-1 min-w-[280px] p-4 flex items-center gap-3 border-r">
-                    <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={pro.photo} /><AvatarFallback>{pro.name[0]}</AvatarFallback></Avatar>
-                    <div><h3 className="font-bold text-sm text-slate-900">{pro.name}</h3><p className="text-[10px] text-slate-500 uppercase tracking-wider">{pro.role}</p></div>
-                  </div>
-                ))}
-              </div>
+            <div className="flex border-b sticky top-0 bg-white z-20">
+              <div className="w-16 shrink-0 bg-slate-50 border-r" />
+              {professionals.map((pro: any) => (
+                <div key={pro.id} className="flex-1 min-w-[280px] p-4 flex items-center gap-3 border-r">
+                  <Avatar className="h-10 w-10 ring-2 ring-primary/10"><AvatarImage src={pro.photo_url} /><AvatarFallback>{pro.name[0]}</AvatarFallback></Avatar>
+                  <div><h3 className="font-bold text-sm text-slate-900">{pro.name}</h3><p className="text-[10px] text-slate-500 uppercase tracking-wider">{pro.role}</p></div>
+                </div>
+              ))}
+            </div>
 
-              <div className="flex-1 relative">
-                <div className="flex h-full">
-                  <div className="w-16 shrink-0 bg-slate-50 border-r flex flex-col">
+            <div className="flex-1 relative">
+              <div className="flex h-full">
+                <div className="w-16 shrink-0 bg-slate-50 border-r flex flex-col">
+                  {timeSlots.map(time => (
+                    <div key={time} className="h-24 border-b p-2 text-[10px] font-bold text-slate-400 text-center">{time}</div>
+                  ))}
+                </div>
+
+                {professionals.map((pro: any) => (
+                  <div key={pro.id} className="flex-1 min-w-[280px] border-r relative group">
                     {timeSlots.map(time => (
-                      <div key={time} className="h-24 border-b p-2 text-[10px] font-bold text-slate-400 text-center">{time}</div>
+                      <div key={time} className="h-24 border-b border-slate-100 group-hover:bg-slate-50/50 transition-colors" />
                     ))}
-                  </div>
-
-                  {ADMIN_PROFESSIONALS.map(pro => (
-                    <div key={pro.id} className="flex-1 min-w-[280px] border-r relative group">
-                      {timeSlots.map(time => (
-                        <div key={time} className="h-24 border-b border-slate-100 group-hover:bg-slate-50/50 transition-colors" />
-                      ))}
 
                       {agendaData.filter(item => item.professional_id === pro.id).map(apt => {
                         const [h, m] = apt.time.split(":").map(Number);
