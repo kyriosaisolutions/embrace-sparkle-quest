@@ -77,16 +77,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "SaaS for beauty salons and barbershops to manage bookings, clients, and operations." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "SaaS for beauty salons and barbershops to manage bookings, clients, and operations." },
+      { title: "Agendaki — Sistema de Agendamento para Salões e Barbearias" },
+      { name: "description", content: "Agendamento online, controle financeiro, comissões automáticas e área do cliente. Tudo o que seu salão precisa para crescer." },
+      { name: "author", content: "Agendaki" },
+      { property: "og:title", content: "Agendaki — Sistema de Agendamento" },
+      { property: "og:description", content: "Agendamento online, controle financeiro, comissões automáticas e área do cliente." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "SaaS for beauty salons and barbershops to manage bookings, clients, and operations." },
+      { name: "twitter:site", content: "@Agendaki" },
+      { name: "twitter:title", content: "Agendaki — Sistema de Agendamento" },
+      { name: "twitter:description", content: "Agendamento online, controle financeiro, comissões automáticas e área do cliente." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7e64b2f6-32c5-4aea-ba5c-d3b4b03840e5/id-preview-308765f4--ca988c9f-395f-44bd-97b2-f0ce150dbabf.lovable.app-1780073780845.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/7e64b2f6-32c5-4aea-ba5c-d3b4b03840e5/id-preview-308765f4--ca988c9f-395f-44bd-97b2-f0ce150dbabf.lovable.app-1780073780845.png" },
     ],
@@ -105,7 +105,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <head>
         <HeadContent />
       </head>

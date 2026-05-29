@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 import { useState, useMemo, useEffect } from "react";
 import { 
   Calendar as CalendarIcon, 
@@ -75,26 +76,13 @@ import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/se
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
-    // Admin auth placeholder
-    const isAdmin = true;
-    if (!isAdmin) throw redirect({ to: "/" });
+    if (typeof window === "undefined") return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/admin/login" });
   },
   component: AdminAgendaPage,
 });
 
-const ADMIN_PROFESSIONALS = [
-  { id: "p1", name: "Ricardo Silva", role: "Master", photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop" },
-  { id: "p2", name: "Felipe Oliveira", role: "Barba", photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop" },
-  { id: "p3", name: "Maria Clara", role: "Coloração", photo: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop" },
-];
-
-const MOCK_AGENDA = [
-  { id: "1", professional_id: "p1", client: "João Silva", service: "Corte Masculino", time: "09:00", duration: 45, status: "confirmed" },
-  { id: "2", professional_id: "p1", client: "Pedro Alves", service: "Barba", time: "10:30", duration: 30, status: "in_progress" },
-  { id: "3", professional_id: "p2", client: "Lucas Lima", service: "Corte + Barba", time: "09:30", duration: 75, status: "scheduled" },
-  { id: "4", professional_id: "p2", client: "Block", service: "Intervalo Almoço", time: "12:00", duration: 60, status: "blocked" },
-  { id: "5", professional_id: "p3", client: "Mariana C.", service: "Luzes", time: "14:00", duration: 120, status: "confirmed" },
-];
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "bg-blue-50 border-blue-200 text-blue-700",
@@ -108,7 +96,20 @@ const STATUS_COLORS: Record<string, string> = {
 
 function AdminAgendaPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
+  const [currentUser, setCurrentUser] = useState<{ email?: string; name?: string } | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUser({ email: user.email, name: user.user_metadata?.full_name || user.email });
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/admin/login" });
+  };
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isOffline, setIsOffline] = useState(false);
@@ -205,14 +206,27 @@ function AdminAgendaPage() {
           <Button variant="ghost" onClick={() => setActiveTab("settings")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "settings" && "bg-white/10 text-white")}><Settings className="w-5 h-5" /><span className="hidden lg:block">Configurações</span></Button>
         </nav>
 
-        <div className="p-4 border-t border-slate-800">
+        <div className="p-4 border-t border-slate-800 space-y-2">
           <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8"><AvatarImage src="https://github.com/shadcn.png" /></Avatar>
-            <div className="hidden lg:block">
-              <p className="text-xs font-bold text-white">João Admin</p>
-              <p className="text-[10px] text-slate-500 uppercase">Dono do Salão</p>
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-primary text-white text-xs">
+                {currentUser?.name?.[0]?.toUpperCase() ?? "A"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="hidden lg:block flex-1 min-w-0">
+              <p className="text-xs font-bold text-white truncate">{currentUser?.name ?? "Admin"}</p>
+              <p className="text-[10px] text-slate-500 uppercase truncate">{currentUser?.email}</p>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="w-full justify-start gap-2 text-slate-400 hover:text-white hover:bg-white/5 text-xs h-8"
+          >
+            <XCircle className="w-4 h-4" />
+            <span className="hidden lg:block">Sair</span>
+          </Button>
         </div>
       </aside>
 
@@ -400,7 +414,7 @@ function AdminAgendaPage() {
                     <Card key={pro.id} className="hover:border-primary/50 transition-colors">
                       <CardHeader className="pb-4">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10"><AvatarImage src={pro.photo} /></Avatar>
+                          <Avatar className="h-10 w-10"><AvatarImage src={pro.photo_url} /></Avatar>
                           <div><CardTitle className="text-sm">{pro.name}</CardTitle><CardDescription className="text-xs">Meta mensal: 85%</CardDescription></div>
                         </div>
                       </CardHeader>
@@ -572,7 +586,7 @@ function AdminAgendaPage() {
                         <h3 className="font-bold">{svc.name}</h3>
                         <Badge variant="outline" className="text-[10px]">{svc.category}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">{svc.duration} min • R$ {svc.price.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{svc.duration_minutes} min • R$ {(svc.price_cents / 100).toFixed(2)}</p>
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon"><Edit2 className="h-4 w-4" /></Button>
@@ -598,7 +612,7 @@ function AdminAgendaPage() {
                 <Card key={pro.id} className="overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex gap-4 items-start mb-6">
-                      <Avatar className="h-16 w-16"><AvatarImage src={pro.photo} /></Avatar>
+                      <Avatar className="h-16 w-16"><AvatarImage src={pro.photo_url} /></Avatar>
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">{pro.name}</h3>
                         <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none">{pro.role}</Badge>

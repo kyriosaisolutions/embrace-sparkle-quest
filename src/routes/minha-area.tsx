@@ -1,5 +1,5 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -38,32 +38,63 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY!
-);
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/minha-area")({
   beforeLoad: async () => {
-    const isAuthenticated = true; 
-    if (!isAuthenticated) throw redirect({ to: "/" });
+    if (typeof window === "undefined") return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/login" });
   },
   component: MyAreaPage,
 });
 
 function MyAreaPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const clientId = "d1a3e5b7-4c1d-4f1e-8a5b-9c8d7e6f5a4b";
+  const [clientId, setClientId] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<{ email?: string; name?: string } | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setAuthUser({ email: user.email, name: user.user_metadata?.full_name });
+
+      const { data: existing } = await supabase
+        .from("clients")
+        .select("id")
+        .or(`email.eq.${user.email},google_id.eq.${user.id}`)
+        .maybeSingle();
+
+      if (existing) {
+        setClientId(existing.id);
+      } else {
+        const { data: created } = await supabase
+          .from("clients")
+          .insert({
+            name: user.user_metadata?.full_name || user.email || "Cliente",
+            email: user.email,
+            google_id: user.id,
+          })
+          .select("id")
+          .single();
+        if (created) setClientId(created.id);
+      }
+    });
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["my-appointments", clientId],
+    enabled: !!clientId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
         .select("*, tenants(name, slug, logo_url), services(name), professionals(name)")
-        .eq("client_id", clientId)
+        .eq("client_id", clientId!)
         .order("starts_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -89,6 +120,7 @@ function MyAreaPage() {
   };
 
   const handleReviewSubmit = async () => {
+    if (!clientId) { toast.error("Erro: usuário não identificado."); return; }
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from("reviews").insert({
@@ -122,12 +154,31 @@ function MyAreaPage() {
     }
   };
 
+  const mySalons = useMemo(() => {
+    const seen = new Set<string>();
+    return appointments
+      .filter((a: any) => a.tenants && !seen.has(a.tenants.slug) && seen.add(a.tenants.slug))
+      .map((a: any) => a.tenants);
+  }, [appointments]);
+
+  if (!clientId && !isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
   if (isLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b px-4 md:px-8 py-4 flex justify-between items-center sticky top-0 z-10">
+        <div className="flex items-center gap-2 font-bold text-lg text-primary">
+          <ExternalLink className="w-5 h-5" />
+          <span>Minha Área</span>
+        </div>
+        <div className="flex items-center gap-4">
+          {authUser?.name && <span className="text-sm text-muted-foreground hidden sm:block">{authUser.name}</span>}
+          <Button variant="outline" size="sm" onClick={handleLogout}>Sair</Button>
+        </div>
+      </header>
+    <div className="p-4 md:p-8">
       <main className="max-w-4xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold">Minha Área</h1>
+        <h1 className="text-2xl font-bold">Olá{authUser?.name ? `, ${authUser.name.split(" ")[0]}` : ""}!</h1>
         
         <section className="space-y-4">
           <h2 className="font-bold text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-primary" /> Próximos</h2>
@@ -144,6 +195,29 @@ function MyAreaPage() {
             </Card>
           ))}
         </section>
+
+        {mySalons.length > 0 && (
+          <section className="space-y-4">
+            <h2 className="font-bold text-lg flex items-center gap-2"><Store className="w-5 h-5 text-primary" /> Meus Salões</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {mySalons.map((salon: any) => (
+                <Card key={salon.slug} className="overflow-hidden hover:border-primary/50 transition-colors">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold text-sm">
+                        {salon.name?.[0]}
+                      </div>
+                      <p className="font-bold text-sm">{salon.name}</p>
+                    </div>
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={`/${salon.slug}`}>Ver</a>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
@@ -166,6 +240,7 @@ function MyAreaPage() {
           </Collapsible>
         </section>
       </main>
+    </div>
 
       <Dialog open={!!reviewingAppointment} onOpenChange={() => setReviewingAppointment(null)}>
         <DialogContent>
@@ -188,3 +263,4 @@ function MyAreaPage() {
     </div>
   );
 }
+

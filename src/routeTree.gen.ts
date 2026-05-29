@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MinhaAreaRouteImport } from './routes/minha-area'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminLoginRouteImport } from './routes/admin-login'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +24,16 @@ const MinhaAreaRoute = MinhaAreaRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SlugRoute = SlugRouteImport.update({
@@ -39,12 +51,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesById {
@@ -52,20 +68,24 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$slug' | '/admin' | '/minha-area'
+  fullPaths: '/' | '/$slug' | '/admin' | '/admin/login' | '/login' | '/minha-area'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$slug' | '/admin' | '/minha-area'
-  id: '__root__' | '/' | '/$slug' | '/admin' | '/minha-area'
+  to: '/' | '/$slug' | '/admin' | '/admin/login' | '/login' | '/minha-area'
+  id: '__root__' | '/' | '/$slug' | '/admin' | '/admin/login' | '/login' | '/minha-area'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  LoginRoute: typeof LoginRoute
   MinhaAreaRoute: typeof MinhaAreaRoute
 }
 
@@ -83,6 +103,20 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/$slug': {
@@ -106,6 +140,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  LoginRoute: LoginRoute,
   MinhaAreaRoute: MinhaAreaRoute,
 }
 export const routeTree = rootRouteImport
