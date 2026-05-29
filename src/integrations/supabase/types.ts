@@ -277,24 +277,30 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          slot_interval_minutes: number | null
           slug: string
           updated_at: string | null
+          working_hours: Json | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           logo_url?: string | null
           name: string
+          slot_interval_minutes?: number | null
           slug: string
           updated_at?: string | null
+          working_hours?: Json | null
         }
         Update: {
           created_at?: string | null
           id?: string
           logo_url?: string | null
           name?: string
+          slot_interval_minutes?: number | null
           slug?: string
           updated_at?: string | null
+          working_hours?: Json | null
         }
         Relationships: []
       }
