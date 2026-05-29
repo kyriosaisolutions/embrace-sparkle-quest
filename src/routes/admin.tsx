@@ -284,9 +284,6 @@ function AdminAgendaPage() {
           </>
         )}
 
-          </>
-        )}
-
         {activeTab === "finance" && (
           <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full space-y-8">
             <div className="flex justify-between items-center">
