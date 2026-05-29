@@ -778,14 +778,6 @@ function TenantPublicPage() {
               </div>
             )}
           </div>
-
-          {bookingStep === 2 && selectedTime && (
-            <div className="p-4 border-t bg-muted/30">
-              <Button className="w-full h-12 text-lg font-bold" onClick={() => setBookingStep(3)}>
-                Continuar
-              </Button>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>
