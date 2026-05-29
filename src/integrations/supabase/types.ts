@@ -87,8 +87,10 @@ export type Database = {
       }
       clients: {
         Row: {
+          avatar_url: string | null
           created_at: string | null
           email: string | null
+          google_id: string | null
           id: string
           name: string
           phone: string | null
@@ -96,8 +98,10 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string | null
           email?: string | null
+          google_id?: string | null
           id?: string
           name: string
           phone?: string | null
@@ -105,8 +109,10 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string | null
           email?: string | null
+          google_id?: string | null
           id?: string
           name?: string
           phone?: string | null
@@ -301,6 +307,33 @@ export type Database = {
           slug?: string
           updated_at?: string | null
           working_hours?: Json | null
+        }
+        Relationships: []
+      }
+      verification_codes: {
+        Row: {
+          code: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          phone: string
+          used_at: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          phone: string
+          used_at?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          phone?: string
+          used_at?: string | null
         }
         Relationships: []
       }
