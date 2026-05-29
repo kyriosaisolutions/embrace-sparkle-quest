@@ -1,13 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 
+// Note: In server functions, use environment variables to configure clients.
+// For Lovable Cloud, these are already injected into the runtime.
 const supabaseUrl = process.env.VITE_SUPABASE_URL!;
 const supabaseAnonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const getTenantBySlug = createServerFn({ method: "GET" })
-  .validator((slug: string) => slug)
+  .inputValidator(z.string())
   .handler(async ({ data: slug }) => {
     const { data, error } = await supabase
       .from("tenants")
@@ -28,7 +31,7 @@ export const getTenantBySlug = createServerFn({ method: "GET" })
   });
 
 export const getTenantReviews = createServerFn({ method: "GET" })
-  .validator((tenantId: string) => tenantId)
+  .inputValidator(z.string())
   .handler(async ({ data: tenantId }) => {
     const { data, error } = await supabase
       .from("reviews")
