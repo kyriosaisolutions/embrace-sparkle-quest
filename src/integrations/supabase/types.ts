@@ -18,40 +18,55 @@ export type Database = {
         Row: {
           client_id: string
           created_at: string | null
-          end_time: string
+          deposit_cents: number
+          deposit_paid_at: string | null
+          ends_at: string
           id: string
           notes: string | null
+          payment_method: string | null
           professional_id: string
+          protocol: string | null
           service_id: string
-          start_time: string
+          starts_at: string
           status: string
           tenant_id: string
+          total_cents: number
           updated_at: string | null
         }
         Insert: {
           client_id: string
           created_at?: string | null
-          end_time: string
+          deposit_cents?: number
+          deposit_paid_at?: string | null
+          ends_at: string
           id?: string
           notes?: string | null
+          payment_method?: string | null
           professional_id: string
+          protocol?: string | null
           service_id: string
-          start_time: string
+          starts_at: string
           status?: string
           tenant_id: string
+          total_cents?: number
           updated_at?: string | null
         }
         Update: {
           client_id?: string
           created_at?: string | null
-          end_time?: string
+          deposit_cents?: number
+          deposit_paid_at?: string | null
+          ends_at?: string
           id?: string
           notes?: string | null
+          payment_method?: string | null
           professional_id?: string
+          protocol?: string | null
           service_id?: string
-          start_time?: string
+          starts_at?: string
           status?: string
           tenant_id?: string
+          total_cents?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -216,6 +231,7 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string | null
+          deposit_percent: number | null
           description: string | null
           discount_days: number[] | null
           discount_percent: number | null
@@ -234,6 +250,7 @@ export type Database = {
         Insert: {
           category?: string | null
           created_at?: string | null
+          deposit_percent?: number | null
           description?: string | null
           discount_days?: number[] | null
           discount_percent?: number | null
@@ -252,6 +269,7 @@ export type Database = {
         Update: {
           category?: string | null
           created_at?: string | null
+          deposit_percent?: number | null
           description?: string | null
           discount_days?: number[] | null
           discount_percent?: number | null
@@ -342,7 +360,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_protocol: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never
