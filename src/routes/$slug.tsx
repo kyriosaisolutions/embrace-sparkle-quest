@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { 
   Star, 
   Instagram, 
@@ -55,11 +55,25 @@ function TenantPublicPage() {
     queryFn: () => getTenantBySlug({ data: slug }),
   });
 
-  const { data: reviewsData = [] } = useQuery({
-    queryKey: ["reviews", tenant?.id],
-    queryFn: () => getTenantReviews({ data: tenant!.id }),
+  const [reviewPage, setReviewPage] = useState(0);
+  const [allReviews, setAllReviews] = useState<any[]>([]);
+  const [reviewsMeta, setReviewsMeta] = useState({ totalCount: 0, avgRating: 0, hasMore: false });
+
+  const { data: reviewsResult, isFetching: isLoadingReviews } = useQuery({
+    queryKey: ["reviews", tenant?.id, reviewPage],
+    queryFn: () => getTenantReviews({ data: { tenantId: tenant!.id, page: reviewPage } }),
     enabled: !!tenant?.id,
   });
+
+  useEffect(() => {
+    if (!reviewsResult) return;
+    setAllReviews(prev =>
+      reviewPage === 0
+        ? reviewsResult.reviews
+        : [...prev, ...reviewsResult.reviews.filter(r => !prev.some((p: any) => p.id === r.id))]
+    );
+    setReviewsMeta({ totalCount: reviewsResult.totalCount, avgRating: reviewsResult.avgRating, hasMore: reviewsResult.hasMore });
+  }, [reviewsResult]);
 
   const [isLoggedIn] = useState(false);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -250,9 +264,13 @@ function TenantPublicPage() {
             <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
               <div className="flex items-center text-yellow-400">
                 <Star className="w-5 h-5 fill-current" />
-                <span className="ml-1 font-bold text-white">{tenant.rating || "4.8"}</span>
+                <span className="ml-1 font-bold text-white">
+                  {reviewsMeta.avgRating > 0 ? reviewsMeta.avgRating.toFixed(1) : "–"}
+                </span>
               </div>
-              <span className="text-primary-foreground/80">({tenant.total_reviews || "0"} avaliações)</span>
+              <span className="text-primary-foreground/80">
+                ({reviewsMeta.totalCount} {reviewsMeta.totalCount === 1 ? "avaliação" : "avaliações"})
+              </span>
             </div>
             <div className="flex items-center justify-center md:justify-start gap-4 mt-4">
               {tenant.social_instagram && <a href={tenant.social_instagram} target="_blank" rel="noreferrer"><Instagram className="w-6 h-6" /></a>}
@@ -290,13 +308,21 @@ function TenantPublicPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold mb-6">O que dizem nossos clientes</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">O que dizem nossos clientes</h2>
+              {reviewsMeta.totalCount > 0 && (
+                <span className="text-sm text-muted-foreground">{reviewsMeta.totalCount} avaliações</span>
+              )}
+            </div>
+            {allReviews.length === 0 && !isLoadingReviews && (
+              <p className="text-muted-foreground text-sm">Nenhuma avaliação ainda.</p>
+            )}
             <div className="space-y-4">
-              {reviewsData.map((review: any) => (
+              {allReviews.map((review: any) => (
                 <div key={review.id} className="bg-card border rounded-xl p-6 space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-bold">{review.clients?.name}</p>
+                      <p className="font-bold">{review.clients?.name ?? "Cliente"}</p>
                       <div className="flex gap-0.5 text-yellow-400 mt-1">
                         {[...Array(5)].map((_, i) => (
                           <Star key={i} className={cn("w-4 h-4", i < review.rating ? "fill-current" : "text-muted")} />
@@ -305,10 +331,21 @@ function TenantPublicPage() {
                     </div>
                     <span className="text-xs text-muted-foreground">{new Date(review.created_at).toLocaleDateString('pt-BR')}</span>
                   </div>
-                  <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>
+                  {review.comment && <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>}
                 </div>
               ))}
             </div>
+            {reviewsMeta.hasMore && (
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setReviewPage(p => p + 1)}
+                disabled={isLoadingReviews}
+              >
+                {isLoadingReviews ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Ver mais avaliações
+              </Button>
+            )}
           </section>
 
           {professionals.length > 1 && (

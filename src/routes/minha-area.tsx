@@ -37,7 +37,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/minha-area")({
@@ -49,10 +49,21 @@ export const Route = createFileRoute("/minha-area")({
   component: MyAreaPage,
 });
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+function canReview(apt: any): boolean {
+  if (apt.status !== "completed") return false;
+  if (apt.has_review) return false;
+  return Date.now() - new Date(apt.starts_at).getTime() <= SEVEN_DAYS_MS;
+}
+
 function MyAreaPage() {
+  const qc = useQueryClient();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [clientId, setClientId] = useState<string | null>(null);
   const [authUser, setAuthUser] = useState<{ email?: string; name?: string } | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -85,6 +96,30 @@ function MyAreaPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = "/login";
+  };
+
+  const handleCancelAppointment = async (appointment: any) => {
+    const tenantCancellationHours = appointment.tenants?.cancellation_hours ?? 2;
+    const hoursUntil = (new Date(appointment.starts_at).getTime() - Date.now()) / 3600000;
+    if (hoursUntil < tenantCancellationHours) {
+      toast.error(`Cancelamento não permitido com menos de ${tenantCancellationHours}h de antecedência.`);
+      return;
+    }
+    setCancellingId(appointment.id);
+    try {
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "cancelled" })
+        .eq("id", appointment.id);
+      if (error) throw error;
+      toast.success("Agendamento cancelado.");
+      qc.invalidateQueries({ queryKey: ["my-appointments", clientId] });
+    } catch {
+      toast.error("Erro ao cancelar agendamento.");
+    } finally {
+      setCancellingId(null);
+      setConfirmCancelId(null);
+    }
   };
 
   const { data: appointments = [], isLoading } = useQuery({
@@ -182,18 +217,64 @@ function MyAreaPage() {
         
         <section className="space-y-4">
           <h2 className="font-bold text-lg flex items-center gap-2"><Calendar className="w-5 h-5 text-primary" /> Próximos</h2>
-          {nextAppointments.map((appointment: any) => (
-            <Card key={appointment.id} className="overflow-hidden border-l-4 border-l-primary">
-              <CardContent className="p-6 flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold">{appointment.tenants?.name}</h3>
-                  <p className="text-sm">{appointment.services?.name} • {new Date(appointment.starts_at).toLocaleString('pt-BR')}</p>
-                  <div className="mt-2">{getStatusBadge(appointment.status)}</div>
-                </div>
-                <Button size="sm" variant="outline" asChild><a href={`/${appointment.tenants?.slug}`}>Ver Salão</a></Button>
-              </CardContent>
-            </Card>
-          ))}
+          {nextAppointments.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum agendamento futuro.</p>
+          )}
+          {nextAppointments.map((appointment: any) => {
+            const hoursUntil = (new Date(appointment.starts_at).getTime() - Date.now()) / 3600000;
+            const cancellationHours = appointment.tenants?.cancellation_hours ?? 2;
+            const canCancel = appointment.status !== "cancelled" && hoursUntil >= cancellationHours;
+            return (
+              <Card key={appointment.id} className="overflow-hidden border-l-4 border-l-primary">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <h3 className="font-bold">{appointment.tenants?.name}</h3>
+                      <p className="text-sm text-muted-foreground">{appointment.services?.name}</p>
+                      <p className="text-sm">{new Date(appointment.starts_at).toLocaleString('pt-BR')}</p>
+                      <div className="mt-2">{getStatusBadge(appointment.status)}</div>
+                    </div>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button size="sm" variant="outline" asChild>
+                        <a href={`/${appointment.tenants?.slug}`}>Ver Salão</a>
+                      </Button>
+                      {canCancel && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-rose-600 hover:text-rose-700"
+                          onClick={() => setConfirmCancelId(appointment.id)}
+                          disabled={cancellingId === appointment.id}
+                        >
+                          {cancellingId === appointment.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+                <Dialog open={confirmCancelId === appointment.id} onOpenChange={() => setConfirmCancelId(null)}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Cancelar agendamento?</DialogTitle>
+                      <DialogDescription>
+                        Você está prestes a cancelar <strong>{appointment.services?.name}</strong> em{" "}
+                        <strong>{appointment.tenants?.name}</strong> no dia{" "}
+                        {new Date(appointment.starts_at).toLocaleDateString('pt-BR')}. Esta ação não pode ser desfeita.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setConfirmCancelId(null)}>Manter</Button>
+                      <Button variant="destructive" onClick={() => handleCancelAppointment(appointment)} disabled={!!cancellingId}>
+                        {cancellingId ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                        Confirmar cancelamento
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </Card>
+            );
+          })}
         </section>
 
         {mySalons.length > 0 && (
@@ -231,7 +312,7 @@ function MyAreaPage() {
                     <p className="font-bold">{h.tenants?.name} <span className="font-normal text-xs text-muted-foreground">• {new Date(h.starts_at).toLocaleDateString('pt-BR')}</span></p>
                     <p className="text-xs text-muted-foreground">{h.services?.name}</p>
                   </div>
-                  {!h.has_review && h.status === 'completed' && (
+                  {canReview(h) && (
                     <Button size="sm" variant="secondary" onClick={() => setReviewingAppointment(h)}><Star className="w-3 h-3 mr-1" /> Avaliar</Button>
                   )}
                 </div>

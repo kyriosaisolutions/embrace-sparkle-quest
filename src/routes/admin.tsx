@@ -73,6 +73,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/server/functions/admin";
+import { getFinanceKPIs, getCommissionsByProfessional } from "@/server/functions/finance";
+import { Upload } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
@@ -99,10 +101,24 @@ function AdminAgendaPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
   const [currentUser, setCurrentUser] = useState<{ email?: string; name?: string } | null>(null);
+  const [isOwner, setIsOwner] = useState(true);
+  const [myProfessionalId, setMyProfessionalId] = useState<string | null>(null);
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setCurrentUser({ email: user.email, name: user.user_metadata?.full_name || user.email });
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setCurrentUser({ email: user.email, name: user.user_metadata?.full_name || user.email });
+      const { data: pro } = await supabase
+        .from("professionals")
+        .select("id, access_level")
+        .eq("tenant_id", "7b2d56e2-6e2a-4c12-8f9d-16a7f0e34c56")
+        .eq("email", user.email!)
+        .maybeSingle();
+      if (pro && pro.access_level === "professional") {
+        setIsOwner(false);
+        setMyProfessionalId(pro.id);
+      }
     });
   }, []);
 
@@ -147,6 +163,78 @@ function AdminAgendaPage() {
     }));
   }, [agendaRaw]);
 
+  const { data: financeData } = useQuery({
+    queryKey: ["financeKPIs", tenantId],
+    queryFn: () => getFinanceKPIs({ data: tenantId }),
+    enabled: isOwner,
+  });
+
+  const { data: commissionsData = [] } = useQuery({
+    queryKey: ["commissionsPerPro", tenantId],
+    queryFn: () => getCommissionsByProfessional({ data: tenantId }),
+    enabled: isOwner,
+  });
+
+  const handleExportCsv = () => {
+    const logs = financeData?.commissionLogs ?? [];
+    if (!logs.length) { toast.error("Nenhum dado para exportar."); return; }
+    const header = "Data,Profissional,Valor Base (R$),Taxa (%),Comissão (R$),Pago";
+    const rows = logs.map((l: any) => [
+      new Date(l.calculated_at).toLocaleString("pt-BR"),
+      l.professionals?.name ?? "–",
+      (l.service_price_cents / 100).toFixed(2),
+      l.commission_rate,
+      (l.commission_cents / 100).toFixed(2),
+      l.paid ? "Sim" : "Não",
+    ].join(","));
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "comissoes.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchCepAdmin = async (cep: string) => {
+    const cleaned = cep.replace(/\D/g, "");
+    if (cleaned.length !== 8) return;
+    setIsLoadingCep(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setTenantInfo(p => ({ ...p, address: `${data.logradouro}, ${data.bairro}, ${data.localidade} - ${data.uf}` }));
+        toast.success("Endereço preenchido!");
+      } else {
+        toast.error("CEP não encontrado.");
+      }
+    } finally {
+      setIsLoadingCep(false);
+    }
+  };
+
+  const handleProPhotoUpload = async (file: File, proId: string) => {
+    const ext = file.name.split(".").pop();
+    const path = `${proId}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (upErr) { toast.error("Erro no upload."); return; }
+    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("professionals").update({ photo_url: publicUrl }).eq("id", proId);
+    queryClient.invalidateQueries({ queryKey: ["adminFullData", tenantId] });
+    toast.success("Foto atualizada!");
+  };
+
+  const handleServiceImageUpload = async (file: File, serviceId: string) => {
+    const ext = file.name.split(".").pop();
+    const path = `${serviceId}.${ext}`;
+    const { error: upErr } = await supabase.storage.from("services").upload(path, file, { upsert: true });
+    if (upErr) { toast.error("Erro no upload."); return; }
+    const { data: { publicUrl } } = supabase.storage.from("services").getPublicUrl(path);
+    await supabase.from("services").update({ image_url: publicUrl }).eq("id", serviceId);
+    queryClient.invalidateQueries({ queryKey: ["adminFullData", tenantId] });
+    toast.success("Imagem atualizada!");
+  };
+
   // Settings states
   const [setupStep, setSetupTab] = useState(1);
   const [tenantInfo, setTenantInfo] = useState({
@@ -163,7 +251,11 @@ function AdminAgendaPage() {
     return Array.from(new Set(adminData.services.map((s: any) => s.category)));
   }, [adminData]);
 
-  const professionals = useMemo(() => adminData?.professionals || [], [adminData]);
+  const professionals = useMemo(() => {
+    const all = adminData?.professionals || [];
+    if (!isOwner && myProfessionalId) return all.filter((p: any) => p.id === myProfessionalId);
+    return all;
+  }, [adminData, isOwner, myProfessionalId]);
 
   // Monitor online/offline status
   useEffect(() => {
@@ -200,10 +292,10 @@ function AdminAgendaPage() {
         
         <nav className="flex-1 px-4 space-y-2 py-4">
           <Button variant="ghost" onClick={() => setActiveTab("agenda")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "agenda" && "bg-white/10 text-white")}><CalendarIcon className="w-5 h-5" /><span className="hidden lg:block">Agenda</span></Button>
-          <Button variant="ghost" onClick={() => setActiveTab("finance")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "finance" && "bg-white/10 text-white")}><DollarSign className="w-5 h-5" /><span className="hidden lg:block">Financeiro</span></Button>
+          {isOwner && <Button variant="ghost" onClick={() => setActiveTab("finance")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "finance" && "bg-white/10 text-white")}><DollarSign className="w-5 h-5" /><span className="hidden lg:block">Financeiro</span></Button>}
           <Button variant="ghost" onClick={() => setActiveTab("services")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "services" && "bg-white/10 text-white")}><Package className="w-5 h-5" /><span className="hidden lg:block">Serviços</span></Button>
-          <Button variant="ghost" onClick={() => setActiveTab("team")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "team" && "bg-white/10 text-white")}><Users className="w-5 h-5" /><span className="hidden lg:block">Equipe</span></Button>
-          <Button variant="ghost" onClick={() => setActiveTab("settings")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "settings" && "bg-white/10 text-white")}><Settings className="w-5 h-5" /><span className="hidden lg:block">Configurações</span></Button>
+          {isOwner && <Button variant="ghost" onClick={() => setActiveTab("team")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "team" && "bg-white/10 text-white")}><Users className="w-5 h-5" /><span className="hidden lg:block">Equipe</span></Button>}
+          {isOwner && <Button variant="ghost" onClick={() => setActiveTab("settings")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "settings" && "bg-white/10 text-white")}><Settings className="w-5 h-5" /><span className="hidden lg:block">Configurações</span></Button>}
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-2">
@@ -349,19 +441,19 @@ function AdminAgendaPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
                 <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center"><DollarSign className="h-6 w-6" /></div>
-                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Faturamento (Hoje)</p><p className="text-xl font-bold text-slate-900">R$ 1.240,00</p></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Faturamento (Hoje)</p><p className="text-xl font-bold text-slate-900">{financeData ? ((financeData.todayRevenue || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "–"}</p></div>
               </CardContent></Card>
               <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center"><Wallet className="h-6 w-6" /></div>
-                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Comissões Pendentes</p><p className="text-xl font-bold text-slate-900">R$ 432,00</p></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Comissões Pendentes</p><p className="text-xl font-bold text-slate-900">{financeData ? ((financeData.pendingCommissions || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "–"}</p></div>
               </CardContent></Card>
               <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
                 <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center"><CreditCard className="h-6 w-6" /></div>
-                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">A Receber (Cartão)</p><p className="text-xl font-bold text-slate-900">R$ 3.450,00</p></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Transações Hoje</p><p className="text-xl font-bold text-slate-900">{financeData ? (financeData.todayTransactions?.length ?? 0) : "–"}</p></div>
               </CardContent></Card>
               <Card className="bg-white"><CardContent className="p-4 flex items-center gap-4">
                 <div className="w-12 h-12 bg-slate-50 text-slate-600 rounded-full flex items-center justify-center"><TrendingUp className="h-6 w-6" /></div>
-                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Ticket Médio</p><p className="text-xl font-bold text-slate-900">R$ 65,00</p></div>
+                <div><p className="text-[10px] text-muted-foreground uppercase font-bold">Ticket Médio (Mês)</p><p className="text-xl font-bold text-slate-900">{financeData ? ((financeData.avgTicket || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "–"}</p></div>
               </CardContent></Card>
             </div>
 
@@ -388,17 +480,16 @@ function AdminAgendaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { time: "09:45", client: "João Silva", service: "Corte", method: "PIX", value: 45.00, status: "paid" },
-                          { time: "10:30", client: "Pedro Alves", service: "Barba", method: "Dinheiro", value: 35.00, status: "pending" },
-                          { time: "11:15", client: "Mariana C.", service: "Luzes", method: "Cartão (Online)", value: 180.00, status: "paid" },
-                        ].map((item, i) => (
+                        {(financeData?.todayTransactions ?? []).length === 0 && (
+                          <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-6">Nenhuma movimentação hoje.</TableCell></TableRow>
+                        )}
+                        {(financeData?.todayTransactions ?? []).map((item: any, i: number) => (
                           <TableRow key={i}>
-                            <TableCell className="font-mono text-xs">{item.time}</TableCell>
-                            <TableCell><div><p className="font-bold text-sm">{item.client}</p><p className="text-xs text-muted-foreground">{item.service}</p></div></TableCell>
-                            <TableCell><Badge variant="outline" className="text-[10px] uppercase font-bold">{item.method}</Badge></TableCell>
-                            <TableCell className="font-bold">R$ {item.value.toFixed(2)}</TableCell>
-                            <TableCell>{item.status === 'paid' ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100">Pago</Badge> : <Badge variant="secondary">Pendente</Badge>}</TableCell>
+                            <TableCell className="font-mono text-xs">{new Date(item.starts_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</TableCell>
+                            <TableCell><div><p className="font-bold text-sm">{item.clients?.name ?? "–"}</p><p className="text-xs text-muted-foreground">{item.services?.name ?? "–"}</p></div></TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px] uppercase font-bold">{item.payment_method ?? "–"}</Badge></TableCell>
+                            <TableCell className="font-bold">{((item.total_cents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
+                            <TableCell>{item.status === 'completed' ? <Badge className="bg-emerald-50 text-emerald-600 border-emerald-100">Concluído</Badge> : <Badge variant="secondary">{item.status}</Badge>}</TableCell>
                             <TableCell className="text-right"><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></TableCell>
                           </TableRow>
                         ))}
@@ -409,25 +500,28 @@ function AdminAgendaPage() {
               </TabsContent>
 
               <TabsContent value="commissions" className="space-y-6">
+                {(commissionsData as any[]).length === 0 && (
+                  <p className="text-muted-foreground text-sm text-center py-8">Nenhuma comissão pendente.</p>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {professionals.map((pro: any) => (
+                  {(commissionsData as any[]).map((pro: any) => (
                     <Card key={pro.id} className="hover:border-primary/50 transition-colors">
                       <CardHeader className="pb-4">
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10"><AvatarImage src={pro.photo_url} /></Avatar>
-                          <div><CardTitle className="text-sm">{pro.name}</CardTitle><CardDescription className="text-xs">Meta mensal: 85%</CardDescription></div>
+                          <Avatar className="h-10 w-10"><AvatarImage src={pro.photo_url} /><AvatarFallback>{pro.name?.[0]}</AvatarFallback></Avatar>
+                          <div><CardTitle className="text-sm">{pro.name}</CardTitle><CardDescription className="text-xs">{pro.commission_value}% comissão</CardDescription></div>
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="flex justify-between items-end border-b pb-4">
-                          <div><p className="text-[10px] text-muted-foreground uppercase font-bold">A pagar (Bruto)</p><p className="text-2xl font-bold text-slate-900">R$ 845,50</p></div>
-                          <Button size="sm" className="gap-2 h-8 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Fechar Período</Button>
+                          <div><p className="text-[10px] text-muted-foreground uppercase font-bold">A pagar</p><p className="text-2xl font-bold text-slate-900">{((pro.pendingTotal || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p></div>
+                          <Button size="sm" className="gap-2 h-8 text-xs"><CheckCircle2 className="h-3.5 w-3.5" /> Fechar</Button>
                         </div>
                         <div className="space-y-2">
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Serviços concluídos</span><span className="font-bold">24</span></div>
-                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Comissão média</span><span className="font-bold">30.5%</span></div>
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Serviços (mês)</span><span className="font-bold">{pro.monthCount}</span></div>
+                          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Comissão</span><span className="font-bold">{pro.commission_value}%</span></div>
                         </div>
-                        <Button variant="outline" className="w-full text-xs h-8 gap-2"><Eye className="h-3.5 w-3.5" /> Detalhar Extrato</Button>
+                        <Button variant="outline" className="w-full text-xs h-8 gap-2"><Eye className="h-3.5 w-3.5" /> Detalhar</Button>
                       </CardContent>
                     </Card>
                   ))}
@@ -439,7 +533,7 @@ function AdminAgendaPage() {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <div><CardTitle className="text-lg">Audit Log: Cálculos de Comissão</CardTitle><CardDescription>Registros imutáveis gerados na conclusão do serviço.</CardDescription></div>
-                      <Button variant="outline" size="sm" className="gap-2"><FileText className="h-4 w-4" /> Exportar CSV</Button>
+                      <Button variant="outline" size="sm" className="gap-2" onClick={handleExportCsv}><FileText className="h-4 w-4" /> Exportar CSV</Button>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -455,17 +549,16 @@ function AdminAgendaPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { date: "29/05 14:15", pro: "Ricardo Silva", base: 45.00, rate: 30, value: 13.50, paid: true },
-                          { date: "29/05 15:30", pro: "Maria Clara", base: 180.00, rate: 40, value: 54.00, paid: false },
-                          { date: "29/05 16:45", pro: "Ricardo Silva", base: 45.00, rate: 30, value: 13.50, paid: false },
-                        ].map((log, i) => (
+                        {(financeData?.commissionLogs ?? []).length === 0 && (
+                          <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-6">Nenhum log de comissão.</TableCell></TableRow>
+                        )}
+                        {(financeData?.commissionLogs ?? []).map((log: any, i: number) => (
                           <TableRow key={i}>
-                            <TableCell className="font-mono text-[10px]">{log.date}</TableCell>
-                            <TableCell className="text-sm font-medium">{log.pro}</TableCell>
-                            <TableCell className="text-sm">R$ {log.base.toFixed(2)}</TableCell>
-                            <TableCell className="text-sm">{log.rate}%</TableCell>
-                            <TableCell className="text-sm font-bold text-primary">R$ {log.value.toFixed(2)}</TableCell>
+                            <TableCell className="font-mono text-[10px]">{new Date(log.calculated_at).toLocaleString("pt-BR")}</TableCell>
+                            <TableCell className="text-sm font-medium">{log.professionals?.name ?? "–"}</TableCell>
+                            <TableCell className="text-sm">{((log.service_price_cents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
+                            <TableCell className="text-sm">{log.commission_rate}%</TableCell>
+                            <TableCell className="text-sm font-bold text-primary">{((log.commission_cents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
                             <TableCell>{log.paid ? <Badge className="bg-slate-100 text-slate-600 border-none">Pago</Badge> : <Badge className="bg-blue-50 text-blue-600 border-none">Pendente</Badge>}</TableCell>
                           </TableRow>
                         ))}
@@ -524,11 +617,24 @@ function AdminAgendaPage() {
 
                     {setupStep === 2 && (
                       <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2"><Label>CEP</Label><Input placeholder="00000-000" /></div>
-                          <div className="space-y-2 flex items-end"><Button variant="outline" className="w-full">Buscar Endereço</Button></div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-2 space-y-2">
+                            <Label>CEP</Label>
+                            <Input placeholder="00000-000" value={tenantInfo.cep}
+                              onChange={e => setTenantInfo(p => ({ ...p, cep: e.target.value }))}
+                              onBlur={() => fetchCepAdmin(tenantInfo.cep)} />
+                          </div>
+                          <div className="space-y-2 flex items-end">
+                            <Button variant="outline" className="w-full" onClick={() => fetchCepAdmin(tenantInfo.cep)} disabled={isLoadingCep}>
+                              {isLoadingCep ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
+                            </Button>
+                          </div>
                         </div>
-                        <div className="space-y-2"><Label>Endereço Completo</Label><Input placeholder="Rua, Número, Bairro" /></div>
+                        <div className="space-y-2">
+                          <Label>Endereço Completo</Label>
+                          <Input placeholder="Rua, Número, Bairro" value={tenantInfo.address}
+                            onChange={e => setTenantInfo(p => ({ ...p, address: e.target.value }))} />
+                        </div>
                         <div className="space-y-2"><Label>Complemento</Label><Input placeholder="Sala, andar, etc." /></div>
                       </div>
                     )}
@@ -580,18 +686,27 @@ function AdminAgendaPage() {
               {adminData?.services.map((svc: any) => (
                 <Card key={svc.id} className="group hover:border-primary/50 transition-all">
                   <CardContent className="p-4 flex items-center gap-6">
-                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400"><Package className="h-5 w-5" /></div>
+                    <div className="relative w-16 h-16 shrink-0">
+                      {svc.image_url
+                        ? <img src={svc.image_url} alt={svc.name} className="w-16 h-16 rounded-lg object-cover" />
+                        : <div className="w-16 h-16 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400"><Package className="h-6 w-6" /></div>
+                      }
+                      <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 rounded-lg cursor-pointer transition-opacity">
+                        <Upload className="w-4 h-4 text-white" />
+                        <input type="file" accept="image/*" className="sr-only"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleServiceImageUpload(f, svc.id); }} />
+                      </label>
+                    </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <h3 className="font-bold">{svc.name}</h3>
                         <Badge variant="outline" className="text-[10px]">{svc.category}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">{svc.duration_minutes} min • R$ {(svc.price_cents / 100).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{svc.duration_minutes} min • {(svc.price_cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
                     </div>
                     <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button variant="ghost" size="icon"><Edit2 className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="icon" className="text-rose-500"><Trash2 className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="cursor-grab"><MoreHorizontal className="h-4 w-4" /></Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -612,11 +727,18 @@ function AdminAgendaPage() {
                 <Card key={pro.id} className="overflow-hidden">
                   <CardContent className="p-6">
                     <div className="flex gap-4 items-start mb-6">
-                      <Avatar className="h-16 w-16"><AvatarImage src={pro.photo_url} /></Avatar>
+                      <div className="relative group/avatar">
+                        <Avatar className="h-16 w-16"><AvatarImage src={pro.photo_url} /><AvatarFallback className="text-lg">{pro.name?.[0]}</AvatarFallback></Avatar>
+                        <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/avatar:opacity-100 rounded-full cursor-pointer transition-opacity">
+                          <Upload className="w-4 h-4 text-white" />
+                          <input type="file" accept="image/*" className="sr-only"
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleProPhotoUpload(f, pro.id); }} />
+                        </label>
+                      </div>
                       <div className="flex-1">
                         <h3 className="font-bold text-lg">{pro.name}</h3>
                         <Badge className="bg-primary/10 text-primary hover:bg-primary/10 border-none">{pro.role}</Badge>
-                        <p className="text-xs text-muted-foreground mt-2 italic">Acesso: Profissional</p>
+                        <p className="text-xs text-muted-foreground mt-2 italic">Acesso: {pro.access_level === "owner" ? "Dono" : "Profissional"}</p>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
@@ -630,8 +752,8 @@ function AdminAgendaPage() {
                       </DropdownMenu>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 p-3 rounded-lg"><p className="text-[10px] text-muted-foreground uppercase font-bold">Comissão</p><p className="font-bold">30%</p></div>
-                      <div className="bg-slate-50 p-3 rounded-lg"><p className="text-[10px] text-muted-foreground uppercase font-bold">Agendamentos</p><p className="font-bold">124</p></div>
+                      <div className="bg-slate-50 p-3 rounded-lg"><p className="text-[10px] text-muted-foreground uppercase font-bold">Comissão</p><p className="font-bold">{pro.commission_value ?? 0}%</p></div>
+                      <div className="bg-slate-50 p-3 rounded-lg"><p className="text-[10px] text-muted-foreground uppercase font-bold">Tipo</p><p className="font-bold capitalize">{pro.commission_type ?? "percent"}</p></div>
                     </div>
                   </CardContent>
                 </Card>
