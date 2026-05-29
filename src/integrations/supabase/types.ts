@@ -147,6 +147,41 @@ export type Database = {
           },
         ]
       }
+      professional_breaks: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_at: string
+          id: string
+          professional_id: string
+          start_at: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_at: string
+          id?: string
+          professional_id: string
+          start_at: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_at?: string
+          id?: string
+          professional_id?: string
+          start_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_breaks_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professional_services: {
         Row: {
           professional_id: string
@@ -177,13 +212,55 @@ export type Database = {
           },
         ]
       }
+      professional_working_hours: {
+        Row: {
+          close_time: string
+          created_at: string | null
+          day_of_week: number
+          id: string
+          is_closed: boolean | null
+          open_time: string
+          professional_id: string
+        }
+        Insert: {
+          close_time: string
+          created_at?: string | null
+          day_of_week: number
+          id?: string
+          is_closed?: boolean | null
+          open_time: string
+          professional_id: string
+        }
+        Update: {
+          close_time?: string
+          created_at?: string | null
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean | null
+          open_time?: string
+          professional_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_working_hours_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professionals: {
         Row: {
+          access_level: string | null
           avatar_url: string | null
           bio: string | null
+          commission_type: string | null
+          commission_value: number | null
           created_at: string | null
           email: string | null
           id: string
+          is_active: boolean | null
           name: string
           phone: string | null
           photo_url: string | null
@@ -193,11 +270,15 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          access_level?: string | null
           avatar_url?: string | null
           bio?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string | null
           email?: string | null
           id?: string
+          is_active?: boolean | null
           name: string
           phone?: string | null
           photo_url?: string | null
@@ -207,11 +288,15 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          access_level?: string | null
           avatar_url?: string | null
           bio?: string | null
+          commission_type?: string | null
+          commission_value?: number | null
           created_at?: string | null
           email?: string | null
           id?: string
+          is_active?: boolean | null
           name?: string
           phone?: string | null
           photo_url?: string | null
@@ -297,12 +382,15 @@ export type Database = {
       }
       services: {
         Row: {
+          buffer_time_minutes: number | null
           category: string | null
           created_at: string | null
           deposit_percent: number | null
           description: string | null
           discount_days: number[] | null
+          discount_end_date: string | null
           discount_percent: number | null
+          discount_start_date: string | null
           duration_minutes: number
           enabled: boolean | null
           id: string
@@ -316,12 +404,15 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          buffer_time_minutes?: number | null
           category?: string | null
           created_at?: string | null
           deposit_percent?: number | null
           description?: string | null
           discount_days?: number[] | null
+          discount_end_date?: string | null
           discount_percent?: number | null
+          discount_start_date?: string | null
           duration_minutes: number
           enabled?: boolean | null
           id?: string
@@ -335,12 +426,15 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          buffer_time_minutes?: number | null
           category?: string | null
           created_at?: string | null
           deposit_percent?: number | null
           description?: string | null
           discount_days?: number[] | null
+          discount_end_date?: string | null
           discount_percent?: number | null
+          discount_start_date?: string | null
           duration_minutes?: number
           enabled?: boolean | null
           id?: string
@@ -365,32 +459,50 @@ export type Database = {
       }
       tenants: {
         Row: {
+          cancellation_fee_percent: number | null
+          cancellation_min_hours: number | null
           created_at: string | null
+          facilities: string[] | null
           id: string
           logo_url: string | null
           name: string
+          payment_methods_local: string[] | null
           slot_interval_minutes: number | null
           slug: string
+          social_facebook: string | null
+          social_instagram: string | null
           updated_at: string | null
           working_hours: Json | null
         }
         Insert: {
+          cancellation_fee_percent?: number | null
+          cancellation_min_hours?: number | null
           created_at?: string | null
+          facilities?: string[] | null
           id?: string
           logo_url?: string | null
           name: string
+          payment_methods_local?: string[] | null
           slot_interval_minutes?: number | null
           slug: string
+          social_facebook?: string | null
+          social_instagram?: string | null
           updated_at?: string | null
           working_hours?: Json | null
         }
         Update: {
+          cancellation_fee_percent?: number | null
+          cancellation_min_hours?: number | null
           created_at?: string | null
+          facilities?: string[] | null
           id?: string
           logo_url?: string | null
           name?: string
+          payment_methods_local?: string[] | null
           slot_interval_minutes?: number | null
           slug?: string
+          social_facebook?: string | null
+          social_instagram?: string | null
           updated_at?: string | null
           working_hours?: Json | null
         }
