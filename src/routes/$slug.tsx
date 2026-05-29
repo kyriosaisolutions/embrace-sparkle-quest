@@ -783,3 +783,4 @@ function TenantPublicPage() {
     </div>
   );
 }
+
