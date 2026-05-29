@@ -15,6 +15,7 @@ import {
   Heart,
   ChevronLeft,
   Calendar as CalendarIcon,
+  User,
   Users,
   CheckCircle2,
   MessageCircle,
