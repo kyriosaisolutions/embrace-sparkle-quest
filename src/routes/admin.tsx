@@ -32,7 +32,8 @@ import {
   History,
   FileText,
   Eye,
-  Check
+  Check,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,6 +70,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/server/functions/admin";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
