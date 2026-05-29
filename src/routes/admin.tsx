@@ -396,7 +396,7 @@ function AdminAgendaPage() {
 
               <TabsContent value="commissions" className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {team.map(pro => (
+                  {professionals.map((pro: any) => (
                     <Card key={pro.id} className="hover:border-primary/50 transition-colors">
                       <CardHeader className="pb-4">
                         <div className="flex items-center gap-3">
