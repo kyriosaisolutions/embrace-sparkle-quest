@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -16,7 +16,8 @@ import {
   Store,
   Star,
   Heart,
-  MessageSquare
+  MessageSquare,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,14 +40,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@supabase/supabase-js";
+
+// Client for queries in Minha Area
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL!,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY!
+);
 
 export const Route = createFileRoute("/minha-area")({
   beforeLoad: async () => {
-    // Placeholder for auth check - will implement real check once auth is wired up
+    // Placeholder - real check will use session
     const isAuthenticated = true; 
-    if (!isAuthenticated) {
-      throw redirect({ to: "/" });
-    }
+    if (!isAuthenticated) throw redirect({ to: "/" });
   },
   component: MyAreaPage,
 });
