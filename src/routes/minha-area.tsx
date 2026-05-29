@@ -119,6 +119,31 @@ const MOCK_FAVORITE_TENANTS = [
 
 function MyAreaPage() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  
+  // Real data fetching for current client (using hardcoded ID from existing DB or mock context)
+  const clientId = "d1a3e5b7-4c1d-4f1e-8a5b-9c8d7e6f5a4b"; // Placeholder pro ID for demo
+
+  const { data: appointments = [], isLoading } = useQuery({
+    queryKey: ["my-appointments", clientId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*, tenants(name, slug, logo_url), services(name, duration_minutes), professionals(name)")
+        .eq("client_id", clientId)
+        .order("starts_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const nextAppointments = useMemo(() => 
+    appointments.filter((a: any) => new Date(a.starts_at) > new Date()), 
+  [appointments]);
+
+  const historyAppointments = useMemo(() => 
+    appointments.filter((a: any) => new Date(a.starts_at) <= new Date()), 
+  [appointments]);
+
   const [reviewingAppointment, setReviewingAppointment] = useState<any>(null);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -134,18 +159,31 @@ function MyAreaPage() {
 
   const handleReviewSubmit = async () => {
     setIsSubmitting(true);
-    // Mock API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const { error } = await supabase
+        .from("reviews")
+        .insert({
+          tenant_id: reviewingAppointment.tenant_id,
+          appointment_id: reviewingAppointment.id,
+          client_id: clientId,
+          professional_id: reviewingAppointment.professional_id,
+          rating,
+          comment,
+          recommended
+        });
+      
+      if (error) throw error;
+
+      toast.success("Obrigado pela sua avaliação!");
       setReviewingAppointment(null);
       setRating(0);
       setComment("");
       setRecommended(false);
-      toast.success("Obrigado pela sua avaliação!");
-    }, 1000);
-    
-    // In a real scenario, we would also trigger a WhatsApp notification
-    // after 6h using a database edge function or job queue.
+    } catch (e) {
+      toast.error("Erro ao enviar avaliação.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
