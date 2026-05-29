@@ -326,8 +326,8 @@ function TenantPublicPage() {
           <section>
             <h2 className="text-2xl font-bold mb-6">Todos os Serviços</h2>
             <div className="space-y-8">
-              {categories.map(category => (
-                <div key={category}><h3 className="text-lg font-bold border-b pb-2 mb-4">{category}</h3><div className="space-y-4">
+              {categories.map((category: any) => (
+                <div key={String(category)}><h3 className="text-lg font-bold border-b pb-2 mb-4">{String(category)}</h3><div className="space-y-4">
                   {tenant.services.filter((s: any) => s.category === category).map((service: any) => (
                     <div key={service.id} onClick={() => handleOpenBooking(service)} className="flex items-center justify-between p-4 bg-card rounded-lg border cursor-pointer hover:border-primary">
                       <div className="flex-1"><h4 className="font-bold">{service.name}</h4><div className="flex items-center gap-3 text-sm text-muted-foreground"><span>{service.duration_minutes} min</span><span>•</span><span className="font-semibold text-foreground">{formatPrice(service.price_cents)}</span></div></div><Button variant="ghost" size="icon"><ChevronRight /></Button></div>
