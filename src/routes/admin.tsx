@@ -87,10 +87,30 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AdminAgendaPage() {
+  const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team">("agenda");
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isOffline, setIsOffline] = useState(false);
   const [agendaData, setAgendaData] = useState(MOCK_AGENDA);
+
+  // Settings states
+  const [setupStep, setSetupTab] = useState(1);
+  const [tenantInfo, setTenantInfo] = useState({
+    name: "Barbearia do João",
+    slug: "barbearia-joao",
+    cep: "",
+    address: "",
+    cancellation_hours: 2,
+    cancellation_fee: 0
+  });
+
+  const categories = ["Corte", "Barba", "Tratamento", "Coloração"];
+  const [services, setServices] = useState([
+    { id: "s1", name: "Corte Masculino", category: "Corte", price: 45, duration: 45, deposit: 0 },
+    { id: "s2", name: "Barba Tradicional", category: "Barba", price: 35, duration: 30, deposit: 0 },
+  ]);
+
+  const [team, setTeam] = useState(ADMIN_PROFESSIONALS);
 
   // Monitor online/offline status
   useEffect(() => {
