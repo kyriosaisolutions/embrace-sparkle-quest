@@ -563,7 +563,7 @@ function AdminAgendaPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              {services.map(svc => (
+              {adminData?.services.map((svc: any) => (
                 <Card key={svc.id} className="group hover:border-primary/50 transition-all">
                   <CardContent className="p-4 flex items-center gap-6">
                     <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400"><Package className="h-5 w-5" /></div>
