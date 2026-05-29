@@ -33,7 +33,8 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogDescription
+  DialogDescription,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
