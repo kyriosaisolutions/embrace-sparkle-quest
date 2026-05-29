@@ -431,6 +431,3 @@ function AdminAgendaPage() {
     </div>
   );
 }
-    </div>
-  );
-}
