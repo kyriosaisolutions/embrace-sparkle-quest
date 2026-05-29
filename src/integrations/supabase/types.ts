@@ -123,6 +123,36 @@ export type Database = {
           },
         ]
       }
+      professional_services: {
+        Row: {
+          professional_id: string
+          service_id: string
+        }
+        Insert: {
+          professional_id: string
+          service_id: string
+        }
+        Update: {
+          professional_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_services_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       professionals: {
         Row: {
           avatar_url: string | null
@@ -132,6 +162,9 @@ export type Database = {
           id: string
           name: string
           phone: string | null
+          photo_url: string | null
+          recommendations_count: number | null
+          role: string | null
           tenant_id: string
           updated_at: string | null
         }
@@ -143,6 +176,9 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
+          photo_url?: string | null
+          recommendations_count?: number | null
+          role?: string | null
           tenant_id: string
           updated_at?: string | null
         }
@@ -154,6 +190,9 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          photo_url?: string | null
+          recommendations_count?: number | null
+          role?: string | null
           tenant_id?: string
           updated_at?: string | null
         }
