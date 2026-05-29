@@ -185,10 +185,26 @@ const MOCK_REVIEWS = [
 
 function TenantPublicPage() {
   const { slug } = Route.useParams();
+  
+  // Real data fetching
+  const { data: tenant, isLoading: isLoadingTenant } = useQuery({
+    queryKey: ["tenant", slug],
+    queryFn: () => getTenantBySlug({ data: slug }),
+  });
+
+  const { data: reviewsData = [] } = useQuery({
+    queryKey: ["reviews", tenant?.id],
+    queryFn: () => getTenantReviews({ data: tenant!.id }),
+    enabled: !!tenant?.id,
+  });
+
   const [isLoggedIn] = useState(false);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
-  const [selectedService, setSelectedService] = useState<typeof MOCK_SERVICES[0] | null>(null);
+  const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
+
+  // Form selections
+  const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [selectedProfessional, setSelectedProfessional] = useState<string | "no_preference">("no_preference");
@@ -210,9 +226,22 @@ function TenantPublicPage() {
     });
   };
 
-  const categories = Array.from(new Set(MOCK_SERVICES.map(s => s.category)));
-  const featuredServices = MOCK_SERVICES.filter(s => s.featured);
-  const professionals = MOCK_PROFESSIONALS.sort((a, b) => b.recommendations_count - a.recommendations_count);
+  const categories = useMemo(() => {
+    if (!tenant?.services) return [];
+    return Array.from(new Set(tenant.services.map((s: any) => s.category)));
+  }, [tenant]);
+
+  const featuredServices = useMemo(() => {
+    if (!tenant?.services) return [];
+    return tenant.services.slice(0, 3);
+  }, [tenant]);
+
+  const professionals = useMemo(() => {
+    if (!tenant?.professionals) return [];
+    return [...tenant.professionals].sort((a: any, b: any) => 
+      (b.recommendations_count || 0) - (a.recommendations_count || 0)
+    );
+  }, [tenant]);
 
   const nextBookingDays = useMemo(() => {
     const days = [];
