@@ -161,6 +161,23 @@ const MOCK_PROFESSIONALS = [
   }
 ];
 
+const MOCK_REVIEWS = [
+  {
+    id: "r1",
+    client_name: "Mariana Costa",
+    rating: 5,
+    comment: "Excelente atendimento! O Ricardo é um profissional incrível, muito detalhista.",
+    created_at: "há 2 dias"
+  },
+  {
+    id: "r2",
+    client_name: "Pedro Santos",
+    rating: 4,
+    comment: "Gostei bastante do corte, ambiente muito agradável.",
+    created_at: "há 1 semana"
+  }
+];
+
 function TenantPublicPage() {
   const { slug } = Route.useParams();
   const [isLoggedIn] = useState(false);
