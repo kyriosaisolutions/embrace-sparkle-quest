@@ -14,7 +14,11 @@ import {
   ChevronRight,
   Heart,
   ChevronLeft,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  User,
+  Users,
+  CheckCircle2,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +32,8 @@ import {
   DialogTrigger 
 } from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -153,6 +159,13 @@ function TenantPublicPage() {
   const [selectedService, setSelectedService] = useState<typeof MOCK_SERVICES[0] | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedProfessional, setSelectedProfessional] = useState<string | "no_preference">("no_preference");
+  
+  // Auth step states
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [otp, setOtp] = useState("");
+  const [isOtpSent, setIsOtpSent] = useState(false);
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toLocaleString("pt-BR", {
@@ -227,6 +240,22 @@ function TenantPublicPage() {
     setSelectedService(null);
     setSelectedDate(null);
     setSelectedTime(null);
+    setSelectedProfessional("no_preference");
+    setPhone("");
+    setName("");
+    setOtp("");
+    setIsOtpSent(false);
+  };
+
+  const handleSendOtp = () => {
+    if (!phone || !name) return;
+    setIsOtpSent(true);
+  };
+
+  const handleVerifyOtp = () => {
+    if (otp.length === 6) {
+      setBookingStep(5);
+    }
   };
 
   return (
@@ -481,7 +510,10 @@ function TenantPublicPage() {
                 </Button>
               )}
               <DialogTitle className="text-lg">
-                {bookingStep === 1 ? "Selecione o serviço" : "Data e horário"}
+                {bookingStep === 1 && "Selecione o serviço"}
+                {bookingStep === 2 && "Data e horário"}
+                {bookingStep === 3 && "Selecione o profissional"}
+                {bookingStep === 4 && "Identificação"}
               </DialogTitle>
             </div>
           </DialogHeader>
@@ -489,7 +521,7 @@ function TenantPublicPage() {
           {selectedService && (
             <div className="bg-primary/5 p-3 px-4 border-b flex items-center justify-between text-sm">
               <span className="font-semibold text-primary truncate max-w-[200px]">{selectedService.name}</span>
-              <span className="text-muted-foreground">{formatPrice(selectedService.price_cents)} • {selectedService.duration_minutes} min</span>
+              <span className="text-muted-foreground">{formatPrice(selectedService.price_cents)} • {selectedService.duration_minutes} min {selectedDate && `• ${selectedDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} ${selectedTime || ''}`}</span>
             </div>
           )}
 
@@ -607,10 +639,150 @@ function TenantPublicPage() {
             )}
           </div>
 
+            {bookingStep === 2 && selectedTime && (
+              <div className="p-4 border-t bg-muted/30">
+                <Button className="w-full h-12 text-lg font-bold" onClick={() => setBookingStep(3)}>
+                  Continuar
+                </Button>
+              </div>
+            )}
+
+            {bookingStep === 3 && (
+              <div className="p-4 space-y-6">
+                <div className="space-y-3">
+                  <div 
+                    onClick={() => setSelectedProfessional("no_preference")}
+                    className={cn(
+                      "p-4 border rounded-lg cursor-pointer transition-all flex items-center gap-4",
+                      selectedProfessional === "no_preference" ? "border-primary bg-primary/5 shadow-sm" : "hover:border-primary/50"
+                    )}
+                  >
+                    <Avatar className="w-12 h-12 bg-muted flex items-center justify-center">
+                      <Users className="h-6 w-6 text-muted-foreground" />
+                    </Avatar>
+                    <div className="flex-1">
+                      <h4 className="font-bold">Sem preferência</h4>
+                      <p className="text-xs text-muted-foreground">O sistema escolherá o melhor disponível</p>
+                    </div>
+                    {selectedProfessional === "no_preference" && <CheckCircle2 className="h-5 w-5 text-primary" />}
+                  </div>
+
+                  {professionals.map(pro => (
+                    <div 
+                      key={pro.id}
+                      onClick={() => setSelectedProfessional(pro.id)}
+                      className={cn(
+                        "p-4 border rounded-lg cursor-pointer transition-all flex items-center gap-4",
+                        selectedProfessional === pro.id ? "border-primary bg-primary/5 shadow-sm" : "hover:border-primary/50"
+                      )}
+                    >
+                      <Avatar className="w-12 h-12">
+                        <AvatarImage src={pro.photo_url} alt={pro.name} />
+                        <AvatarFallback>{pro.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold">{pro.name}</h4>
+                          <span className="text-[10px] text-rose-500 font-bold flex items-center gap-0.5">
+                            <Heart className="h-3 w-3 fill-current" /> {pro.recommendations_count}
+                          </span>
+                        </div>
+                        <p className="text-xs text-primary font-medium">{pro.role}</p>
+                      </div>
+                      {selectedProfessional === pro.id && <CheckCircle2 className="h-5 w-5 text-primary" />}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 border-t">
+                  <Button className="w-full h-12 text-lg font-bold" onClick={() => {
+                    if (isLoggedIn) setBookingStep(5);
+                    else setBookingStep(4);
+                  }}>
+                    Continuar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {bookingStep === 4 && (
+              <div className="p-6 space-y-8">
+                <div className="text-center space-y-2">
+                  <h3 className="text-xl font-bold">Quase lá!</h3>
+                  <p className="text-sm text-muted-foreground">Entre ou identifique-se para confirmar o agendamento.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <Button variant="outline" className="w-full h-12 flex items-center justify-center gap-3 font-semibold">
+                    <svg viewBox="0 0 24 24" className="w-5 h-5">
+                      <path fill="#EA4335" d="M12 5.04c1.74 0 3.3.6 4.53 1.58l3.39-3.39C17.85 1.25 15.11 0 12 0 7.31 0 3.25 2.68 1.17 6.6l3.92 3.03C6.01 7.05 8.78 5.04 12 5.04z" />
+                      <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.44h6.44c-.28 1.48-1.12 2.74-2.38 3.58l3.7 2.87c2.16-1.99 3.42-4.92 3.42-8.55z" />
+                      <path fill="#FBBC05" d="M5.09 14.63c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.42H1.17C.42 8.94 0 10.63 0 12.42s.42 3.48 1.17 5L5.09 14.63z" />
+                      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.7-2.87c-1.04.7-2.38 1.12-3.85 1.12-2.98 0-5.51-2.01-6.41-4.72H1.17v3.07C3.25 21.32 7.31 24 12 24z" />
+                    </svg>
+                    Entrar com Google
+                  </Button>
+
+                  <div className="relative flex items-center py-2">
+                    <div className="flex-grow border-t"></div>
+                    <span className="mx-4 text-xs font-bold text-muted-foreground uppercase">Ou via WhatsApp</span>
+                    <div className="flex-grow border-t"></div>
+                  </div>
+
+                  {!isOtpSent ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Nome completo</Label>
+                        <Input 
+                          id="name" 
+                          placeholder="Como quer ser chamado?" 
+                          value={name}
+                          onChange={e => setName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone">WhatsApp</Label>
+                        <Input 
+                          id="phone" 
+                          placeholder="(00) 00000-0000" 
+                          value={phone}
+                          onChange={e => setPhone(e.target.value)}
+                        />
+                      </div>
+                      <Button className="w-full h-12 bg-green-600 hover:bg-green-700 flex gap-2" onClick={handleSendOtp}>
+                        <MessageCircle className="h-5 w-5" /> Enviar código via WhatsApp
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="otp">Código enviado para {phone}</Label>
+                        <Input 
+                          id="otp" 
+                          placeholder="Digite os 6 dígitos" 
+                          maxLength={6}
+                          value={otp}
+                          onChange={e => setOtp(e.target.value)}
+                          className="text-center text-2xl tracking-[0.5em] h-14"
+                        />
+                      </div>
+                      <Button className="w-full h-12" onClick={handleVerifyOtp} disabled={otp.length !== 6}>
+                        Confirmar e Avançar
+                      </Button>
+                      <Button variant="ghost" className="w-full text-xs" onClick={() => setIsOtpSent(false)}>
+                        Alterar número ou reenviar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {bookingStep === 2 && selectedTime && (
             <div className="p-4 border-t bg-muted/30">
-              <Button className="w-full h-12 text-lg font-bold">
-                Confirmar horário
+              <Button className="w-full h-12 text-lg font-bold" onClick={() => setBookingStep(3)}>
+                Continuar
               </Button>
             </div>
           )}
