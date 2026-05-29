@@ -51,6 +51,15 @@ const MOCK_TENANT = {
     { day: "Sábado", hours: "09:00 - 18:00" },
     { day: "Domingo", hours: "Fechado" },
   ],
+  working_hours: {
+    "1": { open: "09:00", close: "20:00", closed: true },
+    "2": { open: "09:00", close: "20:00", closed: false },
+    "3": { open: "09:00", close: "20:00", closed: false },
+    "4": { open: "09:00", close: "20:00", closed: false },
+    "5": { open: "09:00", close: "20:00", closed: false },
+    "6": { open: "09:00", close: "18:00", closed: false },
+    "0": { open: "00:00", close: "00:00", closed: true }
+  },
   socials: {
     instagram: "https://instagram.com",
     facebook: "https://facebook.com",
@@ -582,7 +591,13 @@ function TenantPublicPage() {
                   ) : (
                     <div className="text-center py-12 px-4">
                       <p className="text-muted-foreground mb-2">Sem horários disponíveis para este dia.</p>
-                      <Button variant="link" onClick={() => setSelectedDate(nextBookingDays[idx => idx > 0])}>
+                      <Button variant="link" onClick={() => {
+                        const nextAvailable = nextBookingDays.find(d => {
+                          const config = (MOCK_TENANT.working_hours as any)[d.getDay().toString()];
+                          return config && !config.closed;
+                        });
+                        if (nextAvailable) setSelectedDate(nextAvailable);
+                      }}>
                         Ver próximas vagas
                       </Button>
                     </div>
