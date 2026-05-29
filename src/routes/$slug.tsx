@@ -289,16 +289,16 @@ function TenantPublicPage() {
             <section>
               <h3 className="font-bold text-sm mb-3 uppercase tracking-wider text-muted-foreground">Pagamento</h3>
               <div className="flex flex-wrap gap-2">
-                <CreditCard className="w-6 h-6" title="Cartão" />
+                <CreditCard className="w-6 h-6" />
                 <span className="text-xs font-bold bg-muted px-2 py-1 rounded">PIX</span>
               </div>
             </section>
             <section>
               <h3 className="font-bold text-sm mb-3 uppercase tracking-wider text-muted-foreground">Facilidades</h3>
               <div className="flex flex-wrap gap-3">
-                <Wifi className="w-5 h-5" title="Wi-Fi" />
-                <Car className="w-5 h-5" title="Estacionamento" />
-                <Accessibility className="w-5 h-5" title="Acessibilidade" />
+                <Wifi className="w-5 h-5" />
+                <Car className="w-5 h-5" />
+                <Accessibility className="w-5 h-5" />
               </div>
             </section>
           </div>
