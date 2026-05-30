@@ -39,6 +39,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { rescheduleAppointment } from "@/server/functions/schedule";
+import { exportClientData, requestAccountDeletion } from "@/server/functions/lgpd";
+import { Input } from "@/components/ui/input";
+import { Download, Trash2, CalendarClock, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/minha-area")({
   beforeLoad: async () => {
@@ -144,6 +148,77 @@ function MyAreaPage() {
     appointments.filter((a: any) => new Date(a.starts_at) <= new Date()), 
   [appointments]);
 
+  const [rescheduleApt, setRescheduleApt] = useState<any>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTime, setRescheduleTime] = useState("");
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [showLgpd, setShowLgpd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const handleReschedule = async () => {
+    if (!rescheduleApt || !rescheduleDate || !rescheduleTime) return;
+    const oldStart = new Date(rescheduleApt.starts_at).getTime();
+    const oldEnd = new Date(rescheduleApt.ends_at).getTime();
+    const duration = oldEnd - oldStart;
+    const newStart = new Date(`${rescheduleDate}T${rescheduleTime}`);
+    if (isNaN(newStart.getTime())) { toast.error("Data/hora inválida."); return; }
+    if (newStart.getTime() < Date.now()) { toast.error("Data deve ser no futuro."); return; }
+    const hoursUntilOld = (oldStart - Date.now()) / 3600000;
+    const minHours = rescheduleApt.tenants?.cancellation_hours ?? 2;
+    if (hoursUntilOld < minHours) {
+      toast.error(`Reagendamento exige ${minHours}h de antecedência.`);
+      return;
+    }
+    setIsRescheduling(true);
+    try {
+      await rescheduleAppointment({
+        data: {
+          appointment_id: rescheduleApt.id,
+          new_starts_at: newStart.toISOString(),
+          new_ends_at: new Date(newStart.getTime() + duration).toISOString(),
+        },
+      });
+      toast.success("Agendamento reagendado.");
+      setRescheduleApt(null);
+      setRescheduleDate("");
+      setRescheduleTime("");
+      qc.invalidateQueries({ queryKey: ["my-appointments", clientId] });
+    } catch {
+      toast.error("Erro ao reagendar.");
+    } finally {
+      setIsRescheduling(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    if (!clientId) return;
+    try {
+      const data = await exportClientData({ data: clientId });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Seus dados foram baixados.");
+    } catch {
+      toast.error("Erro ao exportar dados.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!clientId) return;
+    try {
+      await requestAccountDeletion({ data: clientId });
+      await supabase.auth.signOut();
+      toast.success("Conta removida.");
+      window.location.href = "/";
+    } catch {
+      toast.error("Erro ao remover conta.");
+    }
+  };
+
   const [reviewingAppointment, setReviewingAppointment] = useState<any>(null);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -239,16 +314,29 @@ function MyAreaPage() {
                         <a href={`/${appointment.tenants?.slug}`}>Ver Salão</a>
                       </Button>
                       {canCancel && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-rose-600 hover:text-rose-700"
-                          onClick={() => setConfirmCancelId(appointment.id)}
-                          disabled={cancellingId === appointment.id}
-                        >
-                          {cancellingId === appointment.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
-                          Cancelar
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setRescheduleApt(appointment);
+                              setRescheduleDate(new Date(appointment.starts_at).toISOString().slice(0, 10));
+                              setRescheduleTime(new Date(appointment.starts_at).toISOString().slice(11, 16));
+                            }}
+                          >
+                            <CalendarClock className="w-3 h-3 mr-1" /> Reagendar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-rose-600 hover:text-rose-700"
+                            onClick={() => setConfirmCancelId(appointment.id)}
+                            disabled={cancellingId === appointment.id}
+                          >
+                            {cancellingId === appointment.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3 mr-1" />}
+                            Cancelar
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -301,6 +389,30 @@ function MyAreaPage() {
         )}
 
         <section>
+          <Collapsible open={showLgpd} onOpenChange={setShowLgpd}>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between">
+                <div className="flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Privacidade e dados (LGPD)</div>
+                {showLgpd ? <ChevronUp /> : <ChevronDown />}
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 pt-4">
+              <p className="text-xs text-muted-foreground">
+                Você tem direito de acessar, exportar e excluir seus dados a qualquer momento.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={handleExportData}>
+                  <Download className="w-3 h-3 mr-1" /> Baixar meus dados (JSON)
+                </Button>
+                <Button size="sm" variant="outline" className="text-rose-600" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-3 h-3 mr-1" /> Excluir minha conta
+                </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </section>
+
+        <section>
           <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between"><div className="flex items-center gap-2"><History /> Histórico</div>{isHistoryOpen ? <ChevronUp /> : <ChevronDown />}</Button>
@@ -322,6 +434,48 @@ function MyAreaPage() {
         </section>
       </main>
     </div>
+
+      <Dialog open={!!rescheduleApt} onOpenChange={() => setRescheduleApt(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reagendar</DialogTitle>
+            <DialogDescription>Escolha nova data e horário para {rescheduleApt?.services?.name}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label>Data</Label>
+              <Input type="date" value={rescheduleDate} onChange={e => setRescheduleDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>Horário</Label>
+              <Input type="time" value={rescheduleTime} onChange={e => setRescheduleTime(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRescheduleApt(null)}>Cancelar</Button>
+            <Button onClick={handleReschedule} disabled={isRescheduling}>
+              {isRescheduling && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Excluir conta?</DialogTitle>
+            <DialogDescription>
+              Seus dados pessoais serão removidos. Registros de agendamentos passados serão anonimizados para fins fiscais.
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>Manter conta</Button>
+            <Button variant="destructive" onClick={handleDeleteAccount}>Excluir definitivamente</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!reviewingAppointment} onOpenChange={() => setReviewingAppointment(null)}>
         <DialogContent>

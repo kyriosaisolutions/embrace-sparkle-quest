@@ -254,8 +254,37 @@ function TenantPublicPage() {
     return <div className="min-h-screen flex items-center justify-center text-center p-4"><div><h1 className="text-2xl font-bold">Salão não encontrado</h1><p className="text-muted-foreground mt-2">Verifique se a URL está correta.</p></div></div>;
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "HealthAndBeautyBusiness",
+    name: tenant.name,
+    image: tenant.logo_url || undefined,
+    description: tenant.description || undefined,
+    telephone: tenant.phone || undefined,
+    address: tenant.address ? {
+      "@type": "PostalAddress",
+      streetAddress: tenant.address,
+      addressLocality: tenant.city,
+      addressRegion: tenant.state,
+      postalCode: tenant.zip_code,
+      addressCountry: "BR",
+    } : undefined,
+    aggregateRating: reviewsMeta.totalCount > 0 ? {
+      "@type": "AggregateRating",
+      ratingValue: reviewsMeta.avgRating,
+      reviewCount: reviewsMeta.totalCount,
+    } : undefined,
+    makesOffer: (tenant.services || []).map((s: any) => ({
+      "@type": "Offer",
+      itemOffered: { "@type": "Service", name: s.name },
+      price: ((s.price_cents ?? 0) / 100).toFixed(2),
+      priceCurrency: "BRL",
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <header className="relative bg-primary text-primary-foreground py-12 px-4 md:px-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-6">
           <img src={tenant.logo_url} alt={tenant.name} className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-background object-cover" />
