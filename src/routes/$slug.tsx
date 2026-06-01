@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { 
   Star, 
   Instagram, 
@@ -42,6 +42,9 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantBySlug, getTenantReviews } from "@/server/functions/tenants";
 import { createAppointment } from "@/server/functions/appointments";
+import { validateCoupon } from "@/server/functions/coupons";
+import { lookupGiftCard } from "@/server/functions/giftcards";
+import { getClientPackages } from "@/server/functions/packages";
 
 export const Route = createFileRoute("/$slug")({
   component: TenantPublicPage,
@@ -55,13 +58,28 @@ function TenantPublicPage() {
     queryFn: () => getTenantBySlug({ data: slug }),
   });
 
-  const { data: reviewsData = [] } = useQuery({
-    queryKey: ["reviews", tenant?.id],
-    queryFn: () => getTenantReviews({ data: tenant!.id }),
+  const [reviewPage, setReviewPage] = useState(0);
+  const [allReviews, setAllReviews] = useState<any[]>([]);
+  const [reviewsMeta, setReviewsMeta] = useState({ totalCount: 0, avgRating: 0, hasMore: false });
+
+  const { data: reviewsResult, isFetching: isLoadingReviews } = useQuery({
+    queryKey: ["reviews", tenant?.id, reviewPage],
+    queryFn: () => getTenantReviews({ data: { tenantId: tenant!.id, page: reviewPage } }),
     enabled: !!tenant?.id,
   });
 
+  useEffect(() => {
+    if (!reviewsResult) return;
+    setAllReviews(prev =>
+      reviewPage === 0
+        ? reviewsResult.reviews
+        : [...prev, ...reviewsResult.reviews.filter(r => !prev.some((p: any) => p.id === r.id))]
+    );
+    setReviewsMeta({ totalCount: reviewsResult.totalCount, avgRating: reviewsResult.avgRating, hasMore: reviewsResult.hasMore });
+  }, [reviewsResult]);
+
   const [isLoggedIn] = useState(false);
+  const [loggedClientId] = useState<string | null>(null);
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingStep, setBookingStep] = useState(1);
   const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
@@ -76,6 +94,120 @@ function TenantPublicPage() {
   const [otp, setOtp] = useState("");
   const [isOtpSent, setIsOtpSent] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"pix" | "card">("pix");
+
+  // Benefits (cupom / vale-presente / pacote — mutuamente exclusivos)
+  const [benefitKind, setBenefitKind] = useState<"none" | "coupon" | "gift_card" | "package">("none");
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<{ id: string; discount_cents: number } | null>(null);
+  const [couponMsg, setCouponMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [giftCardCode, setGiftCardCode] = useState("");
+  const [giftCard, setGiftCard] = useState<{ id: string; balance_cents: number } | null>(null);
+  const [giftCardAmount, setGiftCardAmount] = useState<number>(0);
+  const [giftCardMsg, setGiftCardMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(null);
+
+  const { data: clientPackages } = useQuery({
+    queryKey: ["client-packages", tenant?.id, loggedClientId],
+    queryFn: () => getClientPackages({ data: { tenant_id: tenant!.id, client_id: loggedClientId! } }),
+    enabled: !!tenant?.id && !!loggedClientId,
+  });
+
+  const availablePackages = useMemo(() => {
+    if (!clientPackages || !selectedService) return [];
+    return (clientPackages as any[]).filter(cp => (cp.sessions_remaining ?? 0) > 0);
+  }, [clientPackages, selectedService]);
+
+  const resetBenefits = () => {
+    setBenefitKind("none");
+    setCouponCode("");
+    setAppliedCoupon(null);
+    setCouponMsg(null);
+    setGiftCardCode("");
+    setGiftCard(null);
+    setGiftCardAmount(0);
+    setGiftCardMsg(null);
+    setSelectedPackageId(null);
+  };
+
+  // Reset benefits whenever exclusive choice changes
+  useEffect(() => {
+    if (benefitKind !== "coupon") {
+      setCouponCode("");
+      setAppliedCoupon(null);
+      setCouponMsg(null);
+    }
+    if (benefitKind !== "gift_card") {
+      setGiftCardCode("");
+      setGiftCard(null);
+      setGiftCardAmount(0);
+      setGiftCardMsg(null);
+    }
+    if (benefitKind !== "package") {
+      setSelectedPackageId(null);
+    }
+  }, [benefitKind]);
+
+  const baseTotalCents = selectedService?.price_cents ?? 0;
+  const finalTotalCents = useMemo(() => {
+    if (benefitKind === "coupon" && appliedCoupon) {
+      return Math.max(0, baseTotalCents - appliedCoupon.discount_cents);
+    }
+    if (benefitKind === "gift_card" && giftCard && giftCardAmount > 0) {
+      return Math.max(0, baseTotalCents - giftCardAmount);
+    }
+    if (benefitKind === "package" && selectedPackageId) {
+      return 0;
+    }
+    return baseTotalCents;
+  }, [benefitKind, appliedCoupon, giftCard, giftCardAmount, selectedPackageId, baseTotalCents]);
+
+  const handleApplyCoupon = async () => {
+    if (!tenant || !selectedService || !couponCode) return;
+    try {
+      const res: any = await validateCoupon({
+        data: {
+          tenant_id: tenant.id,
+          code: couponCode,
+          total_cents: baseTotalCents,
+          service_id: selectedService.id,
+        },
+      });
+      if (res?.valid) {
+        setAppliedCoupon({ id: res.coupon_id, discount_cents: res.discount_cents });
+        setCouponMsg({ ok: true, text: `Desconto aplicado: ${formatPrice(res.discount_cents)}` });
+      } else {
+        setAppliedCoupon(null);
+        setCouponMsg({ ok: false, text: res?.reason ?? "Cupom inválido" });
+      }
+    } catch {
+      setCouponMsg({ ok: false, text: "Erro ao validar cupom" });
+    }
+  };
+
+  const handleLookupGiftCard = async () => {
+    if (!tenant || !giftCardCode) return;
+    try {
+      const res: any = await lookupGiftCard({
+        data: { tenant_id: tenant.id, code: giftCardCode },
+      });
+      if (!res) {
+        setGiftCard(null);
+        setGiftCardMsg({ ok: false, text: "Vale-presente não encontrado" });
+        return;
+      }
+      if (res.status !== "active") {
+        setGiftCard(null);
+        setGiftCardMsg({ ok: false, text: "Vale-presente inativo ou expirado" });
+        return;
+      }
+      setGiftCard({ id: res.id, balance_cents: res.balance_cents });
+      const maxUse = Math.min(res.balance_cents, baseTotalCents);
+      setGiftCardAmount(maxUse);
+      setGiftCardMsg({ ok: true, text: `Saldo disponível: ${formatPrice(res.balance_cents)}` });
+    } catch {
+      setGiftCardMsg({ ok: false, text: "Erro ao consultar vale-presente" });
+    }
+  };
   const [pixTimeLeft, setPixTimeLeft] = useState(600);
   const [isPixConfirmed, setIsPixConfirmed] = useState(false);
   const [protocol, setProtocol] = useState("");
@@ -157,6 +289,7 @@ function TenantPublicPage() {
     setOtp("");
     setIsOtpSent(false);
     setIsCreatingAppointment(false);
+    resetBenefits();
   };
 
   const handleSendOtp = () => {
@@ -166,13 +299,11 @@ function TenantPublicPage() {
 
   const handleVerifyOtp = async () => {
     if (otp.length === 6) {
-      if (selectedService?.deposit_percent && selectedService.deposit_percent > 0) {
-        setBookingStep(5);
-      } else {
-        await handleConfirmBooking();
-      }
+      setBookingStep(5);
     }
   };
+
+  const hasDeposit = !!(selectedService?.deposit_percent && selectedService.deposit_percent > 0);
 
   const handleConfirmBooking = async () => {
     if (!tenant || !selectedService || !selectedDate || !selectedTime) return;
@@ -186,6 +317,12 @@ function TenantPublicPage() {
       const endsAt = new Date(startsAt);
       endsAt.setMinutes(endsAt.getMinutes() + selectedService.duration_minutes);
 
+      const couponId = benefitKind === "coupon" ? appliedCoupon?.id ?? null : null;
+      const discountCents = benefitKind === "coupon" && appliedCoupon ? appliedCoupon.discount_cents : 0;
+      const giftCardId = benefitKind === "gift_card" ? giftCard?.id ?? null : null;
+      const giftCardAmt = benefitKind === "gift_card" ? giftCardAmount : null;
+      const clientPackageId = benefitKind === "package" ? selectedPackageId : null;
+
       const apt = await createAppointment({
         data: {
           tenant_id: tenant.id,
@@ -193,9 +330,14 @@ function TenantPublicPage() {
           service_id: selectedService.id,
           starts_at: startsAt.toISOString(),
           ends_at: endsAt.toISOString(),
-          total_cents: selectedService.price_cents,
+          total_cents: finalTotalCents,
           payment_method: paymentMethod,
-          client_data: { name, phone }
+          client_data: { name, phone },
+          coupon_id: couponId,
+          gift_card_id: giftCardId,
+          gift_card_amount_cents: giftCardAmt,
+          client_package_id: clientPackageId,
+          discount_cents: discountCents,
         }
       });
       
@@ -240,8 +382,37 @@ function TenantPublicPage() {
     return <div className="min-h-screen flex items-center justify-center text-center p-4"><div><h1 className="text-2xl font-bold">Salão não encontrado</h1><p className="text-muted-foreground mt-2">Verifique se a URL está correta.</p></div></div>;
   }
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "HealthAndBeautyBusiness",
+    name: tenant.name,
+    image: tenant.logo_url || undefined,
+    description: tenant.description || undefined,
+    telephone: tenant.phone || undefined,
+    address: tenant.address ? {
+      "@type": "PostalAddress",
+      streetAddress: tenant.address,
+      addressLocality: tenant.city,
+      addressRegion: tenant.state,
+      postalCode: tenant.zip_code,
+      addressCountry: "BR",
+    } : undefined,
+    aggregateRating: reviewsMeta.totalCount > 0 ? {
+      "@type": "AggregateRating",
+      ratingValue: reviewsMeta.avgRating,
+      reviewCount: reviewsMeta.totalCount,
+    } : undefined,
+    makesOffer: (tenant.services || []).map((s: any) => ({
+      "@type": "Offer",
+      itemOffered: { "@type": "Service", name: s.name },
+      price: ((s.price_cents ?? 0) / 100).toFixed(2),
+      priceCurrency: "BRL",
+    })),
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <header className="relative bg-primary text-primary-foreground py-12 px-4 md:px-8">
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-6">
           <img src={tenant.logo_url} alt={tenant.name} className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-background object-cover" />
@@ -250,9 +421,13 @@ function TenantPublicPage() {
             <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
               <div className="flex items-center text-yellow-400">
                 <Star className="w-5 h-5 fill-current" />
-                <span className="ml-1 font-bold text-white">{tenant.rating || "4.8"}</span>
+                <span className="ml-1 font-bold text-white">
+                  {reviewsMeta.avgRating > 0 ? reviewsMeta.avgRating.toFixed(1) : "–"}
+                </span>
               </div>
-              <span className="text-primary-foreground/80">({tenant.total_reviews || "0"} avaliações)</span>
+              <span className="text-primary-foreground/80">
+                ({reviewsMeta.totalCount} {reviewsMeta.totalCount === 1 ? "avaliação" : "avaliações"})
+              </span>
             </div>
             <div className="flex items-center justify-center md:justify-start gap-4 mt-4">
               {tenant.social_instagram && <a href={tenant.social_instagram} target="_blank" rel="noreferrer"><Instagram className="w-6 h-6" /></a>}
@@ -290,13 +465,21 @@ function TenantPublicPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold mb-6">O que dizem nossos clientes</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">O que dizem nossos clientes</h2>
+              {reviewsMeta.totalCount > 0 && (
+                <span className="text-sm text-muted-foreground">{reviewsMeta.totalCount} avaliações</span>
+              )}
+            </div>
+            {allReviews.length === 0 && !isLoadingReviews && (
+              <p className="text-muted-foreground text-sm">Nenhuma avaliação ainda.</p>
+            )}
             <div className="space-y-4">
-              {reviewsData.map((review: any) => (
+              {allReviews.map((review: any) => (
                 <div key={review.id} className="bg-card border rounded-xl p-6 space-y-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-bold">{review.clients?.name}</p>
+                      <p className="font-bold">{review.clients?.name ?? "Cliente"}</p>
                       <div className="flex gap-0.5 text-yellow-400 mt-1">
                         {[...Array(5)].map((_, i) => (
                           <Star key={i} className={cn("w-4 h-4", i < review.rating ? "fill-current" : "text-muted")} />
@@ -305,10 +488,21 @@ function TenantPublicPage() {
                     </div>
                     <span className="text-xs text-muted-foreground">{new Date(review.created_at).toLocaleDateString('pt-BR')}</span>
                   </div>
-                  <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>
+                  {review.comment && <p className="text-muted-foreground text-sm leading-relaxed italic">"{review.comment}"</p>}
                 </div>
               ))}
             </div>
+            {reviewsMeta.hasMore && (
+              <Button
+                variant="outline"
+                className="w-full mt-4"
+                onClick={() => setReviewPage(p => p + 1)}
+                disabled={isLoadingReviews}
+              >
+                {isLoadingReviews ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Ver mais avaliações
+              </Button>
+            )}
           </section>
 
           {professionals.length > 1 && (
@@ -359,7 +553,7 @@ function TenantPublicPage() {
             <div className="flex items-center gap-2">
               {bookingStep > 1 && <Button variant="ghost" size="icon" onClick={() => setBookingStep(prev => prev - 1)}><ChevronLeft /></Button>}
               <DialogTitle>
-                {bookingStep === 1 && "Selecione o serviço"}{bookingStep === 2 && "Data e horário"}{bookingStep === 3 && "Profissional"}{bookingStep === 4 && "Identificação"}{bookingStep === 5 && "Pagamento do sinal"}{bookingStep === 6 && "Agendamento Confirmado"}
+                {bookingStep === 1 && "Selecione o serviço"}{bookingStep === 2 && "Data e horário"}{bookingStep === 3 && "Profissional"}{bookingStep === 4 && "Identificação"}{bookingStep === 5 && (hasDeposit ? "Pagamento do sinal" : "Confirmar agendamento")}{bookingStep === 6 && "Agendamento Confirmado"}
               </DialogTitle>
             </div>
           </DialogHeader>
@@ -446,21 +640,116 @@ function TenantPublicPage() {
                     <p className="text-sm text-muted-foreground flex items-center gap-2"><CalendarIcon className="h-4 w-4" /> {selectedDate?.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {selectedTime}</p>
                     <p className="text-sm text-muted-foreground flex items-center gap-2"><User className="h-4 w-4" /> {selectedProfessional === "no_preference" ? "Sem preferência" : professionals.find((p: any) => p.id === selectedProfessional)?.name}</p>
                   </div>
-                  <div className="pt-2 border-t flex justify-between items-center"><span className="text-sm font-medium">Total</span><span className="font-bold text-lg">{formatPrice(selectedService.price_cents)}</span></div>
+                  {baseTotalCents !== finalTotalCents && (
+                    <div className="pt-2 border-t flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground line-through">{formatPrice(baseTotalCents)}</span>
+                      <span className="text-green-700 font-semibold">- {formatPrice(baseTotalCents - finalTotalCents)}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t flex justify-between items-center"><span className="text-sm font-medium">Total</span><span className="font-bold text-lg">{formatPrice(finalTotalCents)}</span></div>
+                  {benefitKind === "package" && selectedPackageId && (
+                    <p className="text-xs text-green-700">Coberto pelo pacote — sem cobrança</p>
+                  )}
+                </div>
+
+                {/* Benefícios — mutuamente exclusivos */}
+                <div className="space-y-3 border rounded-lg p-4">
+                  <div>
+                    <p className="font-semibold text-sm">Tem algum benefício?</p>
+                    <p className="text-xs text-muted-foreground">Você pode aplicar apenas um benefício por agendamento.</p>
+                  </div>
+                  <RadioGroup value={benefitKind} onValueChange={(v: any) => setBenefitKind(v)} className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2"><RadioGroupItem value="none" id="ben-none" /><Label htmlFor="ben-none" className="text-sm cursor-pointer">Nenhum</Label></div>
+                    <div className="flex items-center gap-2"><RadioGroupItem value="coupon" id="ben-coupon" /><Label htmlFor="ben-coupon" className="text-sm cursor-pointer">Cupom</Label></div>
+                    <div className="flex items-center gap-2"><RadioGroupItem value="gift_card" id="ben-gc" /><Label htmlFor="ben-gc" className="text-sm cursor-pointer">Vale-presente</Label></div>
+                    <div className="flex items-center gap-2"><RadioGroupItem value="package" id="ben-pkg" disabled={!isLoggedIn} /><Label htmlFor="ben-pkg" className={cn("text-sm cursor-pointer", !isLoggedIn && "opacity-50")}>Pacote</Label></div>
+                  </RadioGroup>
+
+                  {benefitKind === "coupon" && (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input placeholder="Código do cupom" value={couponCode} onChange={e => setCouponCode(e.target.value.toUpperCase())} />
+                        <Button type="button" variant="outline" onClick={handleApplyCoupon}>Aplicar</Button>
+                      </div>
+                      {couponMsg && (
+                        <p className={cn("text-xs", couponMsg.ok ? "text-green-700" : "text-red-600")}>{couponMsg.text}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {benefitKind === "gift_card" && (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input placeholder="Código do vale-presente" value={giftCardCode} onChange={e => setGiftCardCode(e.target.value.toUpperCase())} />
+                        <Button type="button" variant="outline" onClick={handleLookupGiftCard}>Consultar saldo</Button>
+                      </div>
+                      {giftCardMsg && (
+                        <p className={cn("text-xs", giftCardMsg.ok ? "text-green-700" : "text-red-600")}>{giftCardMsg.text}</p>
+                      )}
+                      {giftCard && (
+                        <div>
+                          <Label className="text-xs">Quanto usar? (até {formatPrice(Math.min(giftCard.balance_cents, baseTotalCents))})</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={Math.min(giftCard.balance_cents, baseTotalCents) / 100}
+                            step="0.01"
+                            value={(giftCardAmount / 100).toFixed(2)}
+                            onChange={e => {
+                              const v = Math.round(parseFloat(e.target.value || "0") * 100);
+                              const max = Math.min(giftCard.balance_cents, baseTotalCents);
+                              setGiftCardAmount(Math.max(0, Math.min(max, v)));
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {benefitKind === "package" && (
+                    <div className="space-y-2">
+                      {!isLoggedIn ? (
+                        <p className="text-xs text-muted-foreground">Faça login para usar um pacote.</p>
+                      ) : availablePackages.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Você não possui pacotes disponíveis para este serviço.</p>
+                      ) : (
+                        <RadioGroup value={selectedPackageId ?? ""} onValueChange={(v) => setSelectedPackageId(v)} className="space-y-2">
+                          {availablePackages.map((cp: any) => (
+                            <div key={cp.id} className="flex items-center gap-2">
+                              <RadioGroupItem value={cp.id} id={`pkg-${cp.id}`} />
+                              <Label htmlFor={`pkg-${cp.id}`} className="text-sm cursor-pointer">
+                                Usar 1 sessão (restam {cp.sessions_remaining})
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
+                  {hasDeposit && finalTotalCents > 0 && (
                   <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg flex justify-between items-center">
-                    <div><p className="text-xs font-bold text-primary uppercase tracking-tight">Pagar agora (Sinal de {selectedService.deposit_percent}%)</p><p className="text-2xl font-bold text-primary">{formatPrice((selectedService.price_cents * (selectedService.deposit_percent || 0)) / 100)}</p></div>
-                    <div className="text-right"><p className="text-[10px] text-muted-foreground uppercase">No salão</p><p className="font-bold">{formatPrice(selectedService.price_cents - (selectedService.price_cents * (selectedService.deposit_percent || 0)) / 100)}</p></div>
+                    <div><p className="text-xs font-bold text-primary uppercase tracking-tight">Pagar agora (Sinal de {selectedService.deposit_percent}%)</p><p className="text-2xl font-bold text-primary">{formatPrice((finalTotalCents * (selectedService.deposit_percent || 0)) / 100)}</p></div>
+                    <div className="text-right"><p className="text-[10px] text-muted-foreground uppercase">No salão</p><p className="font-bold">{formatPrice(finalTotalCents - (finalTotalCents * (selectedService.deposit_percent || 0)) / 100)}</p></div>
                   </div>
+                  )}
 
+                  {hasDeposit && finalTotalCents > 0 && (
                   <RadioGroup value={paymentMethod} onValueChange={(v: any) => setPaymentMethod(v)} className="grid grid-cols-2 gap-3">
                     <div><RadioGroupItem value="pix" id="pix" className="sr-only" /><Label htmlFor="pix" className={cn("flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-all gap-2", paymentMethod === "pix" ? "border-primary bg-primary/5" : "hover:border-primary/50")}><QrCode className="h-6 w-6" /><span className="font-bold">PIX</span></Label></div>
                     <div><RadioGroupItem value="card" id="card" className="sr-only" /><Label htmlFor="card" className={cn("flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-all gap-2", paymentMethod === "card" ? "border-primary bg-primary/5" : "hover:border-primary/50")}><CreditCard className="h-6 w-6" /><span className="font-bold">Cartão</span></Label></div>
                   </RadioGroup>
+                  )}
 
-                  {paymentMethod === "pix" && (
+                  {(!hasDeposit || finalTotalCents === 0) && (
+                    <Button className="w-full h-12" onClick={handleConfirmBooking} disabled={isCreatingAppointment}>
+                      Confirmar agendamento
+                    </Button>
+                  )}
+
+                  {hasDeposit && finalTotalCents > 0 && paymentMethod === "pix" && (
                     <div className="flex flex-col items-center text-center space-y-4 pt-2">
                       <div className="bg-white p-4 border rounded-xl"><img src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=00020126330014br.gov.bcb.pix0111123456789015204000053039865802BR5913BarbeariaJoao6009SaoPaulo62070503***6304`} alt="QR Code PIX" className={cn("w-40 h-40", isPixConfirmed && "opacity-20")} /></div>
                       {!isPixConfirmed ? (

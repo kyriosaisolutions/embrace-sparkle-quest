@@ -10,6 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as MinhaAreaRouteImport } from './routes/minha-area'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as BuscarRouteImport } from './routes/buscar'
+import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as SlugRouteImport } from './routes/$slug'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,6 +21,26 @@ import { Route as IndexRouteImport } from './routes/index'
 const MinhaAreaRoute = MinhaAreaRouteImport.update({
   id: '/minha-area',
   path: '/minha-area',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BuscarRoute = BuscarRouteImport.update({
+  id: '/buscar',
+  path: '/buscar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin-login',
+  path: '/admin-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -39,12 +63,20 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
+  '/buscar': typeof BuscarRoute
+  '/cadastro': typeof CadastroRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
+  '/buscar': typeof BuscarRoute
+  '/cadastro': typeof CadastroRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRoutesById {
@@ -52,20 +84,53 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/$slug': typeof SlugRoute
   '/admin': typeof AdminRoute
+  '/admin-login': typeof AdminLoginRoute
+  '/buscar': typeof BuscarRoute
+  '/cadastro': typeof CadastroRoute
+  '/login': typeof LoginRoute
   '/minha-area': typeof MinhaAreaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$slug' | '/admin' | '/minha-area'
+  fullPaths:
+    | '/'
+    | '/$slug'
+    | '/admin'
+    | '/admin-login'
+    | '/buscar'
+    | '/cadastro'
+    | '/login'
+    | '/minha-area'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$slug' | '/admin' | '/minha-area'
-  id: '__root__' | '/' | '/$slug' | '/admin' | '/minha-area'
+  to:
+    | '/'
+    | '/$slug'
+    | '/admin'
+    | '/admin-login'
+    | '/buscar'
+    | '/cadastro'
+    | '/login'
+    | '/minha-area'
+  id:
+    | '__root__'
+    | '/'
+    | '/$slug'
+    | '/admin'
+    | '/admin-login'
+    | '/buscar'
+    | '/cadastro'
+    | '/login'
+    | '/minha-area'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SlugRoute: typeof SlugRoute
   AdminRoute: typeof AdminRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  BuscarRoute: typeof BuscarRoute
+  CadastroRoute: typeof CadastroRoute
+  LoginRoute: typeof LoginRoute
   MinhaAreaRoute: typeof MinhaAreaRoute
 }
 
@@ -76,6 +141,34 @@ declare module '@tanstack/react-router' {
       path: '/minha-area'
       fullPath: '/minha-area'
       preLoaderRoute: typeof MinhaAreaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/buscar': {
+      id: '/buscar'
+      path: '/buscar'
+      fullPath: '/buscar'
+      preLoaderRoute: typeof BuscarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-login': {
+      id: '/admin-login'
+      path: '/admin-login'
+      fullPath: '/admin-login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -106,8 +199,22 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SlugRoute: SlugRoute,
   AdminRoute: AdminRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  BuscarRoute: BuscarRoute,
+  CadastroRoute: CadastroRoute,
+  LoginRoute: LoginRoute,
   MinhaAreaRoute: MinhaAreaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
