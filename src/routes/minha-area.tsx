@@ -39,8 +39,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { rescheduleAppointment } from "@/server/functions/schedule";
-import { exportClientData, requestAccountDeletion } from "@/server/functions/lgpd";
+import { rescheduleAppointment } from "@/lib/functions/schedule.functions";
+import { exportClientData, requestAccountDeletion } from "@/lib/functions/lgpd.functions";
 import { Input } from "@/components/ui/input";
 import { Download, Trash2, CalendarClock, ShieldCheck } from "lucide-react";
 

@@ -77,8 +77,8 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/server/functions/admin";
-import { getFinanceKPIs, getCommissionsByProfessional } from "@/server/functions/finance";
+import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/lib/functions/admin.functions";
+import { getFinanceKPIs, getCommissionsByProfessional } from "@/lib/functions/finance.functions";
 import {
   listOpenComandas,
   openComanda,
@@ -87,22 +87,22 @@ import {
   applyComandaDiscount,
   closeComanda,
   getComanda,
-} from "@/server/functions/comandas";
+} from "@/lib/functions/comandas.functions";
 import {
   getCurrentSession,
   openCashSession,
   closeCashSession,
   addCashMovement,
   listSessionMovements,
-} from "@/server/functions/cash";
+} from "@/lib/functions/cash.functions";
 import {
   listProducts,
   upsertProduct,
   adjustStock,
   deleteProduct,
   getLowStock,
-} from "@/server/functions/products";
-import { getLoyaltyRules, upsertLoyaltyRules } from "@/server/functions/loyalty";
+} from "@/lib/functions/products.functions";
+import { getLoyaltyRules, upsertLoyaltyRules } from "@/lib/functions/loyalty.functions";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Upload } from "lucide-react";
 
