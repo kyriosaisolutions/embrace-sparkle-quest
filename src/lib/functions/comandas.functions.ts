@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const openComanda = createServerFn({ method: "POST" })
   .inputValidator(z.object({
@@ -12,6 +11,7 @@ export const openComanda = createServerFn({ method: "POST" })
     opened_by: z.string().uuid().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase.from("comandas").insert(data).select("*").single();
     if (error) throw error;
     return row;
@@ -29,6 +29,7 @@ export const addComandaItem = createServerFn({ method: "POST" })
     unit_price_cents: z.number().int().min(0),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const total = data.unit_price_cents * data.quantity;
     const { data: item, error } = await supabase
       .from("comanda_items")
@@ -51,6 +52,7 @@ async function recalcComanda(comandaId: string) {
 export const removeComandaItem = createServerFn({ method: "POST" })
   .inputValidator(z.object({ item_id: z.string().uuid(), comanda_id: z.string().uuid() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     await supabase.from("comanda_items").delete().eq("id", data.item_id);
     await recalcComanda(data.comanda_id);
     return { ok: true };
@@ -59,6 +61,7 @@ export const removeComandaItem = createServerFn({ method: "POST" })
 export const applyComandaDiscount = createServerFn({ method: "POST" })
   .inputValidator(z.object({ comanda_id: z.string().uuid(), discount_cents: z.number().int().min(0) }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     await supabase.from("comandas").update({ discount_cents: data.discount_cents }).eq("id", data.comanda_id);
     await recalcComanda(data.comanda_id);
     return { ok: true };
@@ -67,6 +70,7 @@ export const applyComandaDiscount = createServerFn({ method: "POST" })
 export const closeComanda = createServerFn({ method: "POST" })
   .inputValidator(z.object({ comanda_id: z.string().uuid(), payment_method: z.string() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: c } = await supabase.from("comandas").select("*").eq("id", data.comanda_id).single();
     if (!c) throw new Error("Comanda não encontrada");
 
@@ -193,6 +197,7 @@ export const closeComanda = createServerFn({ method: "POST" })
 export const getComanda = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: id }) => {
+    const supabase = getServerSupabase();
     const [c, items] = await Promise.all([
       supabase.from("comandas").select("*, clients(name)").eq("id", id).single(),
       supabase.from("comanda_items").select("*").eq("comanda_id", id).order("created_at"),
@@ -203,6 +208,7 @@ export const getComanda = createServerFn({ method: "GET" })
 export const listOpenComandas = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("comandas")
       .select("*, clients(name)")

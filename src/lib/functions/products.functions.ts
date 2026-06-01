@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const listProducts = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data, error } = await supabase
       .from("products")
       .select("*")
@@ -32,6 +32,7 @@ export const upsertProduct = createServerFn({ method: "POST" })
     active: z.boolean().default(true),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase
       .from("products")
       .upsert({ ...data, updated_at: new Date().toISOString() })
@@ -50,6 +51,7 @@ export const adjustStock = createServerFn({ method: "POST" })
     reason: z.string().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: prod } = await supabase.from("products").select("stock_qty").eq("id", data.product_id).single();
     if (!prod) throw new Error("Produto não encontrado");
     const delta = (data.kind === "out" || data.kind === "sale" || data.kind === "loss") ? -Math.abs(data.quantity) : data.quantity;
@@ -68,6 +70,7 @@ export const adjustStock = createServerFn({ method: "POST" })
 export const deleteProduct = createServerFn({ method: "POST" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: id }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) throw error;
     return { ok: true };
@@ -76,6 +79,7 @@ export const deleteProduct = createServerFn({ method: "POST" })
 export const getLowStock = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("products")
       .select("*")

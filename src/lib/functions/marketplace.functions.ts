@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const searchTenants = createServerFn({ method: "GET" })
   .inputValidator(z.object({
@@ -13,6 +12,7 @@ export const searchTenants = createServerFn({ method: "GET" })
     page: z.number().int().min(0).default(0),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const PAGE_SIZE = 20;
     let query = supabase.from("tenants").select("id, name, slug, city, state, logo_url, description", { count: "exact" });
     if (data.q) query = query.ilike("name", `%${data.q}%`);
@@ -49,6 +49,7 @@ export const searchTenants = createServerFn({ method: "GET" })
 export const getCitySuggestions = createServerFn({ method: "GET" })
   .inputValidator(z.string().min(2))
   .handler(async ({ data: q }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("tenants")
       .select("city, state")

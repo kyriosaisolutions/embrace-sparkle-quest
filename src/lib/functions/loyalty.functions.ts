@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const getLoyaltyRules = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase.from("loyalty_rules").select("*").eq("tenant_id", tenantId).maybeSingle();
     return data;
   });
@@ -23,6 +23,7 @@ export const upsertLoyaltyRules = createServerFn({ method: "POST" })
     expires_in_days: z.number().int().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("loyalty_rules").upsert({ ...data, updated_at: new Date().toISOString() });
     if (error) throw error;
     return { ok: true };
@@ -31,6 +32,7 @@ export const upsertLoyaltyRules = createServerFn({ method: "POST" })
 export const getClientPoints = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), client_id: z.string().uuid() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: rows } = await supabase
       .from("loyalty_ledger")
       .select("delta, expires_at")
@@ -53,6 +55,7 @@ export const addPoints = createServerFn({ method: "POST" })
     appointment_id: z.string().uuid().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: rows } = await supabase
       .from("loyalty_ledger")
       .select("delta")

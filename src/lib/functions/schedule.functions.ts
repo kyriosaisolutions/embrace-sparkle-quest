@@ -1,15 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-function getSupabase() {
-  const { createClient } = require("@supabase/supabase-js");
-  return createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
-}
 
 export const getProfessionalWorkingHours = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: professionalId }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("professional_working_hours")
       .select("*")
@@ -29,7 +26,7 @@ export const upsertWorkingHours = createServerFn({ method: "POST" })
     })),
   }))
   .handler(async ({ data }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     await supabase.from("professional_working_hours").delete().eq("professional_id", data.professional_id);
     const rows = data.hours.map((h: any) => ({
       professional_id: data.professional_id,
@@ -46,7 +43,7 @@ export const upsertWorkingHours = createServerFn({ method: "POST" })
 export const listBreaks = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: professionalId }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("professional_breaks")
       .select("*")
@@ -63,7 +60,7 @@ export const addBreak = createServerFn({ method: "POST" })
     reason: z.string().optional(),
   }))
   .handler(async ({ data }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("professional_breaks").insert(data);
     if (error) throw error;
     return { ok: true };
@@ -72,7 +69,7 @@ export const addBreak = createServerFn({ method: "POST" })
 export const deleteBreak = createServerFn({ method: "POST" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: id }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("professional_breaks").delete().eq("id", id);
     if (error) throw error;
     return { ok: true };
@@ -81,7 +78,7 @@ export const deleteBreak = createServerFn({ method: "POST" })
 export const rescheduleAppointment = createServerFn({ method: "POST" })
   .inputValidator(z.object({ appointment_id: z.string().uuid(), new_starts_at: z.string(), new_ends_at: z.string() }))
   .handler(async ({ data }) => {
-    const supabase = getSupabase();
+    const supabase = getServerSupabase();
     const { error } = await supabase
       .from("appointments")
       .update({ starts_at: data.new_starts_at, ends_at: data.new_ends_at })

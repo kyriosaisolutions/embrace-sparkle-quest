@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const getCurrentSession = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("cash_sessions")
       .select("*")
@@ -26,6 +26,7 @@ export const openCashSession = createServerFn({ method: "POST" })
     notes: z.string().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: existing } = await supabase
       .from("cash_sessions")
       .select("id")
@@ -46,6 +47,7 @@ export const closeCashSession = createServerFn({ method: "POST" })
     notes: z.string().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: sess } = await supabase.from("cash_sessions").select("*").eq("id", data.session_id).single();
     if (!sess) throw new Error("Sessão não encontrada");
     const { data: moves } = await supabase.from("cash_movements").select("kind, amount_cents").eq("session_id", data.session_id);
@@ -85,6 +87,7 @@ export const addCashMovement = createServerFn({ method: "POST" })
     created_by: z.string().uuid().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase.from("cash_movements").insert(data).select("*").single();
     if (error) throw error;
     return row;
@@ -93,6 +96,7 @@ export const addCashMovement = createServerFn({ method: "POST" })
 export const listSessionMovements = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: sessionId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("cash_movements")
       .select("*")

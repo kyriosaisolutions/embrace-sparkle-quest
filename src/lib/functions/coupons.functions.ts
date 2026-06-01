@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const listCoupons = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("coupons")
       .select("*, services(name)")
@@ -30,6 +30,7 @@ export const upsertCoupon = createServerFn({ method: "POST" })
     active: z.boolean().default(true),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase
       .from("coupons")
       .upsert({ ...data, code: data.code.toUpperCase() })
@@ -47,6 +48,7 @@ export const validateCoupon = createServerFn({ method: "GET" })
     service_id: z.string().uuid().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: c } = await supabase
       .from("coupons")
       .select("*")
@@ -75,6 +77,7 @@ export const redeemCoupon = createServerFn({ method: "POST" })
     discount_cents: z.number().int(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     await supabase.from("coupon_redemptions").insert(data);
     const { data: c } = await supabase.from("coupons").select("uses_count").eq("id", data.coupon_id).single();
     await supabase.from("coupons").update({ uses_count: (c?.uses_count ?? 0) + 1 }).eq("id", data.coupon_id);

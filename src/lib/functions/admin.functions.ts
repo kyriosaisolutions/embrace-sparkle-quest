@@ -1,10 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const getAdminAgenda = createServerFn({ method: "GET" })
   .inputValidator(z.object({
@@ -12,6 +9,7 @@ export const getAdminAgenda = createServerFn({ method: "GET" })
     date: z.string() // ISO date
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const startOfDay = new Date(data.date);
     startOfDay.setHours(0, 0, 0, 0);
     
@@ -43,6 +41,7 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
     status: z.string()
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: updated, error } = await supabase
       .from("appointments")
       .update({ status: data.status })
@@ -57,6 +56,7 @@ export const updateAppointmentStatus = createServerFn({ method: "POST" })
 export const getTenantFullData = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const [tenantRes, servicesRes, professionalsRes] = await Promise.all([
       supabase.from("tenants").select("*").eq("id", tenantId).single(),
       supabase.from("services").select("*").eq("tenant_id", tenantId).order("sort_order"),

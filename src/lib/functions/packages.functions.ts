@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const listPackages = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data, error } = await supabase
       .from("packages")
       .select("*, services(name)")
@@ -29,6 +29,7 @@ export const upsertPackage = createServerFn({ method: "POST" })
     active: z.boolean().default(true),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase.from("packages").upsert(data).select("*").single();
     if (error) throw error;
     return row;
@@ -41,6 +42,7 @@ export const sellPackageToClient = createServerFn({ method: "POST" })
     client_id: z.string().uuid(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: pkg } = await supabase.from("packages").select("*").eq("id", data.package_id).single();
     if (!pkg) throw new Error("Pacote não encontrado");
     const expires_at = new Date(Date.now() + (pkg.valid_days ?? 365) * 86400000).toISOString();
@@ -62,6 +64,7 @@ export const sellPackageToClient = createServerFn({ method: "POST" })
 export const getClientPackages = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), client_id: z.string().uuid() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: rows } = await supabase
       .from("client_packages")
       .select("*, packages(name, total_sessions, services(name))")
@@ -74,6 +77,7 @@ export const getClientPackages = createServerFn({ method: "GET" })
 export const consumeSession = createServerFn({ method: "POST" })
   .inputValidator(z.object({ client_package_id: z.string().uuid(), appointment_id: z.string().uuid().optional() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: cp } = await supabase.from("client_packages").select("*").eq("id", data.client_package_id).single();
     if (!cp) throw new Error("Pacote do cliente não encontrado");
     if (cp.sessions_remaining <= 0) throw new Error("Pacote esgotado");

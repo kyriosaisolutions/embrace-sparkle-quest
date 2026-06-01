@@ -1,10 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const createAppointment = createServerFn({ method: "POST" })
   .inputValidator(z.object({
@@ -27,6 +24,7 @@ export const createAppointment = createServerFn({ method: "POST" })
     discount_cents: z.number().int().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     let clientId = data.client_id;
 
     // If guest, create or find client by phone
@@ -173,6 +171,7 @@ export const getAvailableSlots = createServerFn({ method: "GET" })
     date: z.string(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     // 1. Service
     const { data: service, error: svcErr } = await supabase
       .from("services")

@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -22,6 +21,7 @@ export const issueGiftCard = createServerFn({ method: "POST" })
     valid_days: z.number().int().default(365),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const code = generateCode();
     const expires_at = new Date(Date.now() + data.valid_days * 86400000).toISOString();
     const { data: row, error } = await supabase
@@ -46,6 +46,7 @@ export const issueGiftCard = createServerFn({ method: "POST" })
 export const lookupGiftCard = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), code: z.string() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: gc } = await supabase
       .from("gift_cards")
       .select("*")
@@ -66,6 +67,7 @@ export const redeemGiftCard = createServerFn({ method: "POST" })
     appointment_id: z.string().uuid().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: gc } = await supabase.from("gift_cards").select("*").eq("id", data.gift_card_id).single();
     if (!gc) throw new Error("Vale-presente não encontrado");
     if (gc.status !== "active") throw new Error("Vale-presente inativo");
@@ -84,6 +86,7 @@ export const redeemGiftCard = createServerFn({ method: "POST" })
 export const listGiftCards = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase
       .from("gift_cards")
       .select("*")

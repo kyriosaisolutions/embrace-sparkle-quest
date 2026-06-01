@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const listWaitlist = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data, error } = await supabase
       .from("waitlist_entries")
       .select("*, services(name), professionals(name)")
@@ -29,6 +29,7 @@ export const createWaitlistEntry = createServerFn({ method: "POST" })
     notes: z.string().optional().nullable(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase
       .from("waitlist_entries")
       .insert(data)
@@ -41,6 +42,7 @@ export const createWaitlistEntry = createServerFn({ method: "POST" })
 export const updateWaitlistStatus = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string().uuid(), status: z.enum(["open","notified","converted","cancelled"]) }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("waitlist_entries").update({ status: data.status }).eq("id", data.id);
     if (error) throw error;
     return { ok: true };

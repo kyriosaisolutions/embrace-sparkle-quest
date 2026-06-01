@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const exportClientData = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: clientId }) => {
+    const supabase = getServerSupabase();
     const [client, appointments, reviews, packages, consents, photos, responses, points] = await Promise.all([
       supabase.from("clients").select("*").eq("id", clientId).single(),
       supabase.from("appointments").select("*").eq("client_id", clientId),
@@ -38,6 +38,7 @@ export const recordConsent = createServerFn({ method: "POST" })
     granted: z.boolean(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("lgpd_consents").insert(data);
     if (error) throw error;
     return { ok: true };
@@ -46,6 +47,7 @@ export const recordConsent = createServerFn({ method: "POST" })
 export const revokeConsent = createServerFn({ method: "POST" })
   .inputValidator(z.object({ client_id: z.string().uuid(), purpose: z.string() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase
       .from("lgpd_consents")
       .update({ revoked_at: new Date().toISOString(), granted: false })
@@ -59,6 +61,7 @@ export const revokeConsent = createServerFn({ method: "POST" })
 export const requestAccountDeletion = createServerFn({ method: "POST" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: clientId }) => {
+    const supabase = getServerSupabase();
     // Anonymize rather than delete to preserve fiscal/audit records.
     const anon = `anon-${clientId.slice(0, 8)}`;
     const { error } = await supabase

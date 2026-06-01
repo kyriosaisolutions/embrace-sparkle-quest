@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const getClientFile = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), client_id: z.string().uuid() }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const [client, appointments, notes, photos, responses] = await Promise.all([
       supabase.from("clients").select("*").eq("id", data.client_id).single(),
       supabase.from("appointments").select("*, services(name)").eq("client_id", data.client_id).eq("tenant_id", data.tenant_id).order("starts_at", { ascending: false }).limit(30),
@@ -37,6 +37,7 @@ export const updateClient = createServerFn({ method: "POST" })
     marketing_opt_in: z.boolean().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { id, ...patch } = data;
     const { error } = await supabase.from("clients").update(patch).eq("id", id);
     if (error) throw error;
@@ -51,6 +52,7 @@ export const addClientNote = createServerFn({ method: "POST" })
     body: z.string().min(1),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase.from("client_notes").insert(data).select("*").single();
     if (error) throw error;
     return row;
@@ -66,6 +68,7 @@ export const addClientPhoto = createServerFn({ method: "POST" })
     caption: z.string().optional(),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("client_photos").insert({ ...data, consent_given_at: new Date().toISOString() });
     if (error) throw error;
     return { ok: true };
@@ -74,6 +77,7 @@ export const addClientPhoto = createServerFn({ method: "POST" })
 export const listAnamnesisForms = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data } = await supabase.from("anamnesis_forms").select("*").eq("tenant_id", tenantId).order("created_at", { ascending: false });
     return data ?? [];
   });
@@ -95,6 +99,7 @@ export const upsertAnamnesisForm = createServerFn({ method: "POST" })
     active: z.boolean().default(true),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { data: row, error } = await supabase.from("anamnesis_forms").upsert(data).select("*").single();
     if (error) throw error;
     return row;
@@ -109,6 +114,7 @@ export const submitAnamnesisResponse = createServerFn({ method: "POST" })
     responses: z.record(z.string(), z.any()),
   }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const { error } = await supabase.from("anamnesis_responses").insert({
       ...data,
       consent_given_at: new Date().toISOString(),

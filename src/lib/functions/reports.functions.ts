@@ -1,12 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabase = createClient(process.env.VITE_SUPABASE_URL!, process.env.VITE_SUPABASE_PUBLISHABLE_KEY!);
 
 export const getDashboard = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), days: z.number().int().min(1).max(365).default(30) }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const since = new Date(Date.now() - data.days * 86400000).toISOString();
     const { data: apts } = await supabase
       .from("appointments")
@@ -52,6 +52,7 @@ export const getDashboard = createServerFn({ method: "GET" })
 export const getRetention = createServerFn({ method: "GET" })
   .inputValidator(z.string().uuid())
   .handler(async ({ data: tenantId }) => {
+    const supabase = getServerSupabase();
     const { data: apts } = await supabase
       .from("appointments")
       .select("client_id, starts_at, total_cents")
@@ -80,6 +81,7 @@ export const getRetention = createServerFn({ method: "GET" })
 export const getOccupancy = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenant_id: z.string().uuid(), days: z.number().int().default(30) }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const since = new Date(Date.now() - data.days * 86400000).toISOString();
     const { data: apts } = await supabase
       .from("appointments")

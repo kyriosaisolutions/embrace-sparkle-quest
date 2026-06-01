@@ -1,15 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
+import { getServerSupabase } from "@/lib/supabase.server";
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const getTenantBySlug = createServerFn({ method: "GET" })
   .inputValidator(z.string())
   .handler(async ({ data: slug }) => {
+    const supabase = getServerSupabase();
     const { data, error } = await supabase
       .from("tenants")
       .select(`
@@ -31,6 +28,7 @@ export const getTenantBySlug = createServerFn({ method: "GET" })
 export const getTenantReviews = createServerFn({ method: "GET" })
   .inputValidator(z.object({ tenantId: z.string().uuid(), page: z.number().int().min(0).default(0) }))
   .handler(async ({ data }) => {
+    const supabase = getServerSupabase();
     const PAGE_SIZE = 10;
     const from = data.page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
