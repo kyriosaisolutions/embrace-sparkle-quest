@@ -804,3 +804,1145 @@ function AdminAgendaPage() {
     </div>
   );
 }
+
+// ============================================================
+// Helpers
+// ============================================================
+const BRL = (cents: number) =>
+  ((cents || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// ============================================================
+// Comandas Panel (PDV)
+// ============================================================
+function ComandasPanel({ tenantId, services }: { tenantId: string; services: any[] }) {
+  const qc = useQueryClient();
+  const [selectedComandaId, setSelectedComandaId] = useState<string | null>(null);
+  const [openNewDialog, setOpenNewDialog] = useState(false);
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<string>("dinheiro");
+
+  const { data: comandas = [] } = useQuery({
+    queryKey: ["openComandas", tenantId],
+    queryFn: () => listOpenComandas({ data: tenantId }),
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["products", tenantId],
+    queryFn: () => listProducts({ data: tenantId }),
+  });
+
+  const { data: comandaDetail } = useQuery({
+    queryKey: ["comandaDetail", selectedComandaId],
+    queryFn: () => getComanda({ data: selectedComandaId! }),
+    enabled: !!selectedComandaId,
+  });
+
+  const [clientSearch, setClientSearch] = useState("");
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clientsSearch", tenantId, clientSearch],
+    queryFn: async () => {
+      let q = supabase.from("clients").select("id, name, phone").eq("tenant_id", tenantId).limit(20);
+      if (clientSearch) q = q.ilike("name", `%${clientSearch}%`);
+      const { data } = await q;
+      return data ?? [];
+    },
+  });
+
+  const openMut = useMutation({
+    mutationFn: (vars: { client_id: string | null }) =>
+      openComanda({ data: { tenant_id: tenantId, client_id: vars.client_id } }),
+    onSuccess: (row: any) => {
+      qc.invalidateQueries({ queryKey: ["openComandas"] });
+      setSelectedComandaId(row.id);
+      setOpenNewDialog(false);
+      toast.success("Comanda aberta!");
+    },
+  });
+
+  const addItemMut = useMutation({
+    mutationFn: addComandaItem,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comandaDetail", selectedComandaId] });
+      qc.invalidateQueries({ queryKey: ["openComandas"] });
+    },
+  });
+
+  const removeItemMut = useMutation({
+    mutationFn: removeComandaItem,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comandaDetail", selectedComandaId] });
+      qc.invalidateQueries({ queryKey: ["openComandas"] });
+    },
+  });
+
+  const discountMut = useMutation({
+    mutationFn: applyComandaDiscount,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["comandaDetail", selectedComandaId] });
+      qc.invalidateQueries({ queryKey: ["openComandas"] });
+    },
+  });
+
+  const closeMut = useMutation({
+    mutationFn: closeComanda,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["openComandas"] });
+      qc.invalidateQueries({ queryKey: ["currentCashSession"] });
+      console.info("comanda_closed", { tenant: tenantId, method: paymentMethod });
+      toast.success("Comanda fechada!");
+      setCloseDialogOpen(false);
+      setSelectedComandaId(null);
+    },
+    onError: (e: any) => toast.error(e?.message || "Erro ao fechar comanda"),
+  });
+
+  const [discountInput, setDiscountInput] = useState("");
+  const [itemSearch, setItemSearch] = useState("");
+
+  const filteredServices = useMemo(
+    () => services.filter((s) => s.name.toLowerCase().includes(itemSearch.toLowerCase())),
+    [services, itemSearch],
+  );
+  const filteredProducts = useMemo(
+    () =>
+      (products as any[]).filter((p) =>
+        p.name.toLowerCase().includes(itemSearch.toLowerCase()),
+      ),
+    [products, itemSearch],
+  );
+
+  // Detail view
+  if (selectedComandaId && comandaDetail?.comanda) {
+    const c = comandaDetail.comanda;
+    const items = comandaDetail.items;
+    return (
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedComandaId(null)} className="gap-2 mb-2">
+              <ChevronLeft className="w-4 h-4" /> Voltar
+            </Button>
+            <h1 className="text-2xl font-bold">Comanda #{c.id.slice(0, 8)}</h1>
+            <p className="text-sm text-muted-foreground">{c.clients?.name ?? "Sem cliente"}</p>
+          </div>
+          <Button onClick={() => setCloseDialogOpen(true)} className="gap-2">
+            <Check className="w-4 h-4" /> Fechar comanda
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Catalog */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Adicionar itens</CardTitle>
+              <Input
+                placeholder="Buscar serviço ou produto..."
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                className="mt-2"
+              />
+            </CardHeader>
+            <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Serviços</p>
+                <div className="space-y-1">
+                  {filteredServices.map((s: any) => (
+                    <div key={s.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
+                      <div>
+                        <p className="text-sm font-medium">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">{BRL(s.price_cents)}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          addItemMut.mutate({
+                            data: {
+                              comanda_id: c.id,
+                              kind: "service",
+                              service_id: s.id,
+                              description: s.name,
+                              quantity: 1,
+                              unit_price_cents: s.price_cents,
+                            },
+                          })
+                        }
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Produtos</p>
+                <div className="space-y-1">
+                  {filteredProducts.map((p: any) => (
+                    <div key={p.id} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
+                      <div>
+                        <p className="text-sm font-medium">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {BRL(p.price_cents)} • estoque: {p.stock_qty}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          addItemMut.mutate({
+                            data: {
+                              comanda_id: c.id,
+                              kind: "product",
+                              product_id: p.id,
+                              description: p.name,
+                              quantity: 1,
+                              unit_price_cents: p.price_cents,
+                            },
+                          })
+                        }
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {filteredProducts.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">Nenhum produto.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Items list */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Itens ({items.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {items.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-4">Nenhum item adicionado.</p>
+              )}
+              {items.map((it: any) => (
+                <div key={it.id} className="flex items-center justify-between gap-2 p-2 border-b last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{it.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {it.quantity}x {BRL(it.unit_price_cents)}
+                    </p>
+                  </div>
+                  <p className="text-sm font-bold">{BRL(it.total_cents)}</p>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-rose-500"
+                    onClick={() => removeItemMut.mutate({ data: { item_id: it.id, comanda_id: c.id } })}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Subtotal</span>
+                  <span>{BRL(c.subtotal_cents ?? 0)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs flex-1">Desconto (R$)</Label>
+                  <Input
+                    type="number"
+                    className="w-28 h-8"
+                    placeholder="0,00"
+                    value={discountInput}
+                    onChange={(e) => setDiscountInput(e.target.value)}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      discountMut.mutate({
+                        data: {
+                          comanda_id: c.id,
+                          discount_cents: Math.round(parseFloat(discountInput || "0") * 100),
+                        },
+                      })
+                    }
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+                <div className="flex justify-between text-sm text-rose-600">
+                  <span>Desconto</span>
+                  <span>- {BRL(c.discount_cents ?? 0)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold border-t pt-2">
+                  <span>Total</span>
+                  <span>{BRL(c.total_cents ?? 0)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Fechar comanda</DialogTitle>
+              <DialogDescription>Total: {BRL(c.total_cents ?? 0)}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <Label>Forma de pagamento</Label>
+              <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
+                {["dinheiro", "pix", "debito", "credito"].map((m) => (
+                  <div key={m} className="flex items-center gap-2">
+                    <RadioGroupItem value={m} id={`pm-${m}`} />
+                    <Label htmlFor={`pm-${m}`} className="capitalize cursor-pointer">
+                      {m}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => closeMut.mutate({ data: { comanda_id: c.id, payment_method: paymentMethod } })}
+                disabled={closeMut.isPending}
+              >
+                {closeMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // List view
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">Comandas abertas</h1>
+          <p className="text-sm text-muted-foreground">{(comandas as any[]).length} em aberto</p>
+        </div>
+        <Button className="gap-2" onClick={() => setOpenNewDialog(true)}>
+          <Plus className="w-4 h-4" /> Nova comanda
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {(comandas as any[]).map((c: any) => (
+          <Card
+            key={c.id}
+            className="cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => setSelectedComandaId(c.id)}
+          >
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <p className="font-bold text-sm">{c.clients?.name ?? "Sem cliente"}</p>
+                <Badge variant="outline" className="text-[10px]">
+                  #{c.id.slice(0, 6)}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Aberta {new Date(c.created_at).toLocaleString("pt-BR")}
+              </p>
+              <p className="text-lg font-bold mt-2">{BRL(c.total_cents ?? 0)}</p>
+            </CardContent>
+          </Card>
+        ))}
+        {(comandas as any[]).length === 0 && (
+          <p className="text-sm text-muted-foreground col-span-full text-center py-8">
+            Nenhuma comanda em aberto.
+          </p>
+        )}
+      </div>
+
+      <Dialog open={openNewDialog} onOpenChange={setOpenNewDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova comanda</DialogTitle>
+            <DialogDescription>Escolha o cliente.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Buscar cliente..."
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+            />
+            <div className="max-h-60 overflow-y-auto space-y-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-sm"
+                onClick={() => openMut.mutate({ client_id: null })}
+              >
+                Sem cliente (avulso)
+              </Button>
+              {(clients as any[]).map((cl: any) => (
+                <Button
+                  key={cl.id}
+                  variant="ghost"
+                  className="w-full justify-start text-sm"
+                  onClick={() => openMut.mutate({ client_id: cl.id })}
+                >
+                  {cl.name}
+                  <span className="ml-auto text-xs text-muted-foreground">{cl.phone}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================
+// Caixa Panel
+// ============================================================
+function CaixaPanel({ tenantId }: { tenantId: string }) {
+  const qc = useQueryClient();
+  const [openingCents, setOpeningCents] = useState("");
+  const [openingNotes, setOpeningNotes] = useState("");
+  const [movDialog, setMovDialog] = useState<null | "withdraw" | "reinforcement" | "expense">(null);
+  const [movAmount, setMovAmount] = useState("");
+  const [movReason, setMovReason] = useState("");
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [closingCents, setClosingCents] = useState("");
+
+  const { data: session } = useQuery({
+    queryKey: ["currentCashSession", tenantId],
+    queryFn: () => getCurrentSession({ data: tenantId }),
+  });
+
+  const { data: movements = [] } = useQuery({
+    queryKey: ["sessionMovements", session?.id],
+    queryFn: () => listSessionMovements({ data: session!.id }),
+    enabled: !!session?.id,
+  });
+
+  const openMut = useMutation({
+    mutationFn: openCashSession,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["currentCashSession"] });
+      console.info("cash_opened", { tenant: tenantId });
+      toast.success("Caixa aberto!");
+      setOpeningCents("");
+      setOpeningNotes("");
+    },
+    onError: (e: any) => toast.error(e?.message || "Erro ao abrir caixa"),
+  });
+
+  const movMut = useMutation({
+    mutationFn: addCashMovement,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sessionMovements"] });
+      toast.success("Movimento registrado");
+      setMovDialog(null);
+      setMovAmount("");
+      setMovReason("");
+    },
+  });
+
+  const closeMut = useMutation({
+    mutationFn: closeCashSession,
+    onSuccess: (row: any) => {
+      qc.invalidateQueries({ queryKey: ["currentCashSession"] });
+      const diff = row?.difference_cents ?? 0;
+      console.info("cash_closed", { tenant: tenantId, difference: diff });
+      toast.success(
+        `Caixa fechado. Diferença: ${BRL(diff)} ${diff === 0 ? "(exato)" : diff > 0 ? "(sobra)" : "(falta)"}`,
+      );
+      setCloseDialogOpen(false);
+      setClosingCents("");
+    },
+  });
+
+  if (!session) {
+    return (
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-2xl mx-auto w-full">
+        <h1 className="text-2xl font-bold mb-6">Abrir caixa</h1>
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div className="space-y-2">
+              <Label>Valor inicial (R$)</Label>
+              <Input
+                type="number"
+                placeholder="0,00"
+                value={openingCents}
+                onChange={(e) => setOpeningCents(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                placeholder="Opcional..."
+                value={openingNotes}
+                onChange={(e) => setOpeningNotes(e.target.value)}
+              />
+            </div>
+            <Button
+              className="w-full gap-2"
+              onClick={() =>
+                openMut.mutate({
+                  data: {
+                    tenant_id: tenantId,
+                    opening_cents: Math.round(parseFloat(openingCents || "0") * 100),
+                    notes: openingNotes || undefined,
+                  },
+                })
+              }
+              disabled={openMut.isPending}
+            >
+              <Wallet className="w-4 h-4" /> Abrir caixa
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-4xl mx-auto w-full space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">Caixa aberto</h1>
+          <p className="text-sm text-muted-foreground">
+            Desde {new Date(session.opened_at).toLocaleString("pt-BR")}
+          </p>
+        </div>
+        <Button variant="destructive" className="gap-2" onClick={() => setCloseDialogOpen(true)}>
+          <XCircle className="w-4 h-4" /> Fechar caixa
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Abertura</p>
+            <p className="text-xl font-bold">{BRL(session.opening_cents ?? 0)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Movimentos</p>
+            <p className="text-xl font-bold">{(movements as any[]).length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <p className="text-[10px] uppercase font-bold text-muted-foreground">Vendas</p>
+            <p className="text-xl font-bold">
+              {(movements as any[]).filter((m: any) => m.kind === "sale").length}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setMovDialog("withdraw")}>
+          <ArrowUpRight className="w-4 h-4" /> Sangria
+        </Button>
+        <Button variant="outline" className="gap-2" onClick={() => setMovDialog("reinforcement")}>
+          <Plus className="w-4 h-4" /> Suprimento
+        </Button>
+        <Button variant="outline" className="gap-2" onClick={() => setMovDialog("expense")}>
+          <Minus className="w-4 h-4" /> Despesa
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Movimentações</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Hora</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Forma</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead>Motivo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(movements as any[]).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-6">
+                    Nenhum movimento.
+                  </TableCell>
+                </TableRow>
+              )}
+              {(movements as any[]).map((m: any) => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-mono text-xs">
+                    {new Date(m.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] uppercase">
+                      {m.kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">{m.payment_method ?? "–"}</TableCell>
+                  <TableCell className="font-bold">{BRL(m.amount_cents)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{m.reason ?? "–"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={movDialog !== null} onOpenChange={(o) => !o && setMovDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {movDialog === "withdraw" && "Sangria"}
+              {movDialog === "reinforcement" && "Suprimento"}
+              {movDialog === "expense" && "Despesa"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Valor (R$)</Label>
+              <Input
+                type="number"
+                value={movAmount}
+                onChange={(e) => setMovAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Motivo</Label>
+              <Input value={movReason} onChange={(e) => setMovReason(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovDialog(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                movDialog &&
+                movMut.mutate({
+                  data: {
+                    session_id: session.id,
+                    tenant_id: tenantId,
+                    kind: movDialog,
+                    amount_cents: Math.round(parseFloat(movAmount || "0") * 100),
+                    reason: movReason || undefined,
+                  },
+                })
+              }
+              disabled={movMut.isPending}
+            >
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Fechar caixa</DialogTitle>
+            <DialogDescription>Informe o valor contado em dinheiro no caixa.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Valor contado (R$)</Label>
+            <Input
+              type="number"
+              value={closingCents}
+              onChange={(e) => setClosingCents(e.target.value)}
+              placeholder="0,00"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                closeMut.mutate({
+                  data: {
+                    session_id: session.id,
+                    closing_cents: Math.round(parseFloat(closingCents || "0") * 100),
+                  },
+                })
+              }
+              disabled={closeMut.isPending}
+            >
+              Confirmar fechamento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================
+// Estoque Panel
+// ============================================================
+function EstoquePanel({ tenantId }: { tenantId: string }) {
+  const qc = useQueryClient();
+  const [onlyLow, setOnlyLow] = useState(false);
+  const [newDialogOpen, setNewDialogOpen] = useState(false);
+  const [adjustProduct, setAdjustProduct] = useState<any | null>(null);
+
+  const [form, setForm] = useState({
+    name: "",
+    sku: "",
+    category: "",
+    cost_cents: "",
+    price_cents: "",
+    stock_qty: "",
+    min_stock_qty: "",
+  });
+  const [adjForm, setAdjForm] = useState<{ kind: "in" | "out" | "adjust" | "loss"; quantity: string; reason: string }>({
+    kind: "in",
+    quantity: "",
+    reason: "",
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ["productsList", tenantId],
+    queryFn: () => listProducts({ data: tenantId }),
+  });
+
+  const filtered = useMemo(() => {
+    const list = products as any[];
+    if (!onlyLow) return list;
+    return list.filter((p: any) => p.stock_qty <= p.min_stock_qty);
+  }, [products, onlyLow]);
+
+  const createMut = useMutation({
+    mutationFn: upsertProduct,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["productsList"] });
+      toast.success("Produto salvo!");
+      setNewDialogOpen(false);
+      setForm({ name: "", sku: "", category: "", cost_cents: "", price_cents: "", stock_qty: "", min_stock_qty: "" });
+    },
+  });
+
+  const adjustMut = useMutation({
+    mutationFn: adjustStock,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["productsList"] });
+      toast.success("Estoque ajustado!");
+      setAdjustProduct(null);
+      setAdjForm({ kind: "in", quantity: "", reason: "" });
+    },
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: deleteProduct,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["productsList"] });
+      toast.success("Produto removido");
+    },
+  });
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-6xl mx-auto w-full space-y-4">
+      <div className="flex justify-between items-center flex-wrap gap-2">
+        <h1 className="text-2xl font-bold">Estoque</h1>
+        <Button className="gap-2" onClick={() => setNewDialogOpen(true)}>
+          <Plus className="w-4 h-4" /> Novo produto
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Checkbox id="onlyLow" checked={onlyLow} onCheckedChange={(v) => setOnlyLow(!!v)} />
+        <Label htmlFor="onlyLow" className="text-sm cursor-pointer">
+          Apenas estoque baixo
+        </Label>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Preço</TableHead>
+                <TableHead>Estoque</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-6">
+                    Nenhum produto.
+                  </TableCell>
+                </TableRow>
+              )}
+              {filtered.map((p: any) => {
+                const isLow = p.stock_qty <= p.min_stock_qty;
+                return (
+                  <TableRow key={p.id} className={cn(isLow && "bg-rose-50")}>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="text-xs">{p.category ?? "–"}</TableCell>
+                    <TableCell>{BRL(p.price_cents)}</TableCell>
+                    <TableCell className={cn(isLow && "text-rose-600 font-bold")}>
+                      {p.stock_qty} {isLow && <AlertTriangle className="inline w-3 h-3 ml-1" />}
+                    </TableCell>
+                    <TableCell>
+                      {p.active ? (
+                        <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Ativo</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inativo</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button size="sm" variant="outline" onClick={() => setAdjustProduct(p)}>
+                        Ajustar
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-rose-500"
+                        onClick={() => deleteMut.mutate({ data: p.id })}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={newDialogOpen} onOpenChange={setNewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo produto</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1 col-span-2">
+              <Label>Nome</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label>SKU</Label>
+              <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label>Categoria</Label>
+              <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label>Custo (R$)</Label>
+              <Input
+                type="number"
+                value={form.cost_cents}
+                onChange={(e) => setForm({ ...form, cost_cents: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Preço (R$)</Label>
+              <Input
+                type="number"
+                value={form.price_cents}
+                onChange={(e) => setForm({ ...form, price_cents: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Estoque inicial</Label>
+              <Input
+                type="number"
+                value={form.stock_qty}
+                onChange={(e) => setForm({ ...form, stock_qty: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Estoque mínimo</Label>
+              <Input
+                type="number"
+                value={form.min_stock_qty}
+                onChange={(e) => setForm({ ...form, min_stock_qty: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                createMut.mutate({
+                  data: {
+                    tenant_id: tenantId,
+                    name: form.name,
+                    sku: form.sku || null,
+                    category: form.category || null,
+                    cost_cents: Math.round(parseFloat(form.cost_cents || "0") * 100),
+                    price_cents: Math.round(parseFloat(form.price_cents || "0") * 100),
+                    stock_qty: parseInt(form.stock_qty || "0"),
+                    min_stock_qty: parseInt(form.min_stock_qty || "0"),
+                    active: true,
+                  },
+                })
+              }
+              disabled={createMut.isPending || !form.name}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!adjustProduct} onOpenChange={(o) => !o && setAdjustProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajustar estoque — {adjustProduct?.name}</DialogTitle>
+            <DialogDescription>Estoque atual: {adjustProduct?.stock_qty}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <RadioGroup
+                value={adjForm.kind}
+                onValueChange={(v) => setAdjForm({ ...adjForm, kind: v as any })}
+              >
+                {[
+                  { v: "in", l: "Entrada" },
+                  { v: "out", l: "Saída" },
+                  { v: "adjust", l: "Ajuste" },
+                  { v: "loss", l: "Perda" },
+                ].map((o) => (
+                  <div key={o.v} className="flex items-center gap-2">
+                    <RadioGroupItem value={o.v} id={`adj-${o.v}`} />
+                    <Label htmlFor={`adj-${o.v}`} className="cursor-pointer">
+                      {o.l}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+            <div className="space-y-1">
+              <Label>Quantidade</Label>
+              <Input
+                type="number"
+                value={adjForm.quantity}
+                onChange={(e) => setAdjForm({ ...adjForm, quantity: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Motivo</Label>
+              <Input
+                value={adjForm.reason}
+                onChange={(e) => setAdjForm({ ...adjForm, reason: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustProduct(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() =>
+                adjustProduct &&
+                adjustMut.mutate({
+                  data: {
+                    tenant_id: tenantId,
+                    product_id: adjustProduct.id,
+                    kind: adjForm.kind,
+                    quantity: parseInt(adjForm.quantity || "0"),
+                    reason: adjForm.reason || undefined,
+                  },
+                })
+              }
+              disabled={adjustMut.isPending}
+            >
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ============================================================
+// Fidelidade Panel
+// ============================================================
+function FidelidadePanel({ tenantId }: { tenantId: string }) {
+  const qc = useQueryClient();
+  const { data: rules } = useQuery({
+    queryKey: ["loyaltyRules", tenantId],
+    queryFn: () => getLoyaltyRules({ data: tenantId }),
+  });
+
+  const [form, setForm] = useState({
+    enabled: true,
+    points_per_currency_unit: 1,
+    currency_unit_cents: 100,
+    points_to_currency_unit: 100,
+    reward_currency_unit_cents: 100,
+    min_redeem_points: 100,
+    expires_in_days: "",
+  });
+
+  useEffect(() => {
+    if (rules) {
+      setForm({
+        enabled: rules.enabled ?? true,
+        points_per_currency_unit: rules.points_per_currency_unit ?? 1,
+        currency_unit_cents: rules.currency_unit_cents ?? 100,
+        points_to_currency_unit: rules.points_to_currency_unit ?? 100,
+        reward_currency_unit_cents: rules.reward_currency_unit_cents ?? 100,
+        min_redeem_points: rules.min_redeem_points ?? 100,
+        expires_in_days: rules.expires_in_days?.toString() ?? "",
+      });
+    }
+  }, [rules]);
+
+  const saveMut = useMutation({
+    mutationFn: upsertLoyaltyRules,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["loyaltyRules"] });
+      toast.success("Regras salvas!");
+    },
+  });
+
+  const [simInput, setSimInput] = useState("100");
+  const simPoints = useMemo(() => {
+    const reais = parseFloat(simInput || "0");
+    if (!form.enabled || !form.currency_unit_cents) return 0;
+    return Math.floor((reais * 100) / form.currency_unit_cents) * form.points_per_currency_unit;
+  }, [simInput, form]);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-8 max-w-4xl mx-auto w-full space-y-4">
+      <h1 className="text-2xl font-bold">Programa de Fidelidade</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Regras</CardTitle>
+          <CardDescription>Configure como os clientes acumulam e resgatam pontos.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="enabled"
+              checked={form.enabled}
+              onCheckedChange={(v) => setForm({ ...form, enabled: v })}
+            />
+            <Label htmlFor="enabled">Programa habilitado</Label>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Pontos por unidade gasta</Label>
+              <Input
+                type="number"
+                value={form.points_per_currency_unit}
+                onChange={(e) =>
+                  setForm({ ...form, points_per_currency_unit: parseFloat(e.target.value || "0") })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Unidade em centavos (100 = R$ 1)</Label>
+              <Input
+                type="number"
+                value={form.currency_unit_cents}
+                onChange={(e) =>
+                  setForm({ ...form, currency_unit_cents: parseInt(e.target.value || "0") })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Pontos para resgate</Label>
+              <Input
+                type="number"
+                value={form.points_to_currency_unit}
+                onChange={(e) =>
+                  setForm({ ...form, points_to_currency_unit: parseFloat(e.target.value || "0") })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Valor do resgate (centavos)</Label>
+              <Input
+                type="number"
+                value={form.reward_currency_unit_cents}
+                onChange={(e) =>
+                  setForm({ ...form, reward_currency_unit_cents: parseInt(e.target.value || "0") })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Mínimo para resgate (pontos)</Label>
+              <Input
+                type="number"
+                value={form.min_redeem_points}
+                onChange={(e) => setForm({ ...form, min_redeem_points: parseInt(e.target.value || "0") })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Expira em (dias, opcional)</Label>
+              <Input
+                type="number"
+                value={form.expires_in_days}
+                onChange={(e) => setForm({ ...form, expires_in_days: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <Button
+            className="gap-2"
+            onClick={() =>
+              saveMut.mutate({
+                data: {
+                  tenant_id: tenantId,
+                  enabled: form.enabled,
+                  points_per_currency_unit: form.points_per_currency_unit,
+                  currency_unit_cents: form.currency_unit_cents,
+                  points_to_currency_unit: form.points_to_currency_unit,
+                  reward_currency_unit_cents: form.reward_currency_unit_cents,
+                  min_redeem_points: form.min_redeem_points,
+                  expires_in_days: form.expires_in_days ? parseInt(form.expires_in_days) : null,
+                },
+              })
+            }
+            disabled={saveMut.isPending}
+          >
+            <Save className="w-4 h-4" /> Salvar regras
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Simulação</CardTitle>
+          <CardDescription>Veja quantos pontos o cliente ganharia.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1">
+            <Label>Cliente gasta (R$)</Label>
+            <Input type="number" value={simInput} onChange={(e) => setSimInput(e.target.value)} />
+          </div>
+          <div className="p-4 bg-emerald-50 rounded-lg flex items-center gap-3">
+            <Star className="w-6 h-6 text-emerald-600" />
+            <div>
+              <p className="text-xs text-emerald-700 font-bold uppercase">Ganha</p>
+              <p className="text-2xl font-bold text-emerald-700">{simPoints} pontos</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
