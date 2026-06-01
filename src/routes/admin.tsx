@@ -34,7 +34,12 @@ import {
   FileText,
   Eye,
   Check,
-  Loader2
+  Loader2,
+  Receipt,
+  Star,
+  Minus,
+  ShoppingCart,
+  AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -74,6 +79,31 @@ import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAdminAgenda, updateAppointmentStatus, getTenantFullData } from "@/server/functions/admin";
 import { getFinanceKPIs, getCommissionsByProfessional } from "@/server/functions/finance";
+import {
+  listOpenComandas,
+  openComanda,
+  addComandaItem,
+  removeComandaItem,
+  applyComandaDiscount,
+  closeComanda,
+  getComanda,
+} from "@/server/functions/comandas";
+import {
+  getCurrentSession,
+  openCashSession,
+  closeCashSession,
+  addCashMovement,
+  listSessionMovements,
+} from "@/server/functions/cash";
+import {
+  listProducts,
+  upsertProduct,
+  adjustStock,
+  deleteProduct,
+  getLowStock,
+} from "@/server/functions/products";
+import { getLoyaltyRules, upsertLoyaltyRules } from "@/server/functions/loyalty";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Upload } from "lucide-react";
 
 export const Route = createFileRoute("/admin")({
@@ -99,7 +129,7 @@ const STATUS_COLORS: Record<string, string> = {
 function AdminAgendaPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance">("agenda");
+  const [activeTab, setActiveTab] = useState<"agenda" | "settings" | "services" | "team" | "finance" | "comandas" | "caixa" | "estoque" | "fidelidade">("agenda");
   const [currentUser, setCurrentUser] = useState<{ email?: string; name?: string } | null>(null);
   const [isOwner, setIsOwner] = useState(true);
   const [myProfessionalId, setMyProfessionalId] = useState<string | null>(null);
@@ -292,8 +322,12 @@ function AdminAgendaPage() {
         
         <nav className="flex-1 px-4 space-y-2 py-4">
           <Button variant="ghost" onClick={() => setActiveTab("agenda")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "agenda" && "bg-white/10 text-white")}><CalendarIcon className="w-5 h-5" /><span className="hidden lg:block">Agenda</span></Button>
+          <Button variant="ghost" onClick={() => setActiveTab("comandas")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "comandas" && "bg-white/10 text-white")}><Receipt className="w-5 h-5" /><span className="hidden lg:block">Comandas</span></Button>
+          <Button variant="ghost" onClick={() => setActiveTab("caixa")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "caixa" && "bg-white/10 text-white")}><Wallet className="w-5 h-5" /><span className="hidden lg:block">Caixa</span></Button>
           {isOwner && <Button variant="ghost" onClick={() => setActiveTab("finance")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "finance" && "bg-white/10 text-white")}><DollarSign className="w-5 h-5" /><span className="hidden lg:block">Financeiro</span></Button>}
           <Button variant="ghost" onClick={() => setActiveTab("services")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "services" && "bg-white/10 text-white")}><Package className="w-5 h-5" /><span className="hidden lg:block">Serviços</span></Button>
+          {isOwner && <Button variant="ghost" onClick={() => setActiveTab("estoque")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "estoque" && "bg-white/10 text-white")}><ShoppingCart className="w-5 h-5" /><span className="hidden lg:block">Estoque</span></Button>}
+          {isOwner && <Button variant="ghost" onClick={() => setActiveTab("fidelidade")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "fidelidade" && "bg-white/10 text-white")}><Star className="w-5 h-5" /><span className="hidden lg:block">Fidelidade</span></Button>}
           {isOwner && <Button variant="ghost" onClick={() => setActiveTab("team")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "team" && "bg-white/10 text-white")}><Users className="w-5 h-5" /><span className="hidden lg:block">Equipe</span></Button>}
           {isOwner && <Button variant="ghost" onClick={() => setActiveTab("settings")} className={cn("w-full justify-start gap-3 hover:bg-white/5", activeTab === "settings" && "bg-white/10 text-white")}><Settings className="w-5 h-5" /><span className="hidden lg:block">Configurações</span></Button>}
         </nav>
@@ -714,6 +748,11 @@ function AdminAgendaPage() {
             </div>
           </div>
         )}
+
+        {activeTab === "comandas" && <ComandasPanel tenantId={tenantId} services={adminData?.services ?? []} />}
+        {activeTab === "caixa" && <CaixaPanel tenantId={tenantId} />}
+        {activeTab === "estoque" && isOwner && <EstoquePanel tenantId={tenantId} />}
+        {activeTab === "fidelidade" && isOwner && <FidelidadePanel tenantId={tenantId} />}
 
         {activeTab === "team" && (
           <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
