@@ -42,6 +42,7 @@ export const addComandaItem = createServerFn({ method: "POST" })
   });
 
 async function recalcComanda(comandaId: string) {
+  const supabase = getServerSupabase();
   const { data: items } = await supabase.from("comanda_items").select("total_cents").eq("comanda_id", comandaId);
   const subtotal = (items ?? []).reduce((s, i: any) => s + (i.total_cents ?? 0), 0);
   const { data: c } = await supabase.from("comandas").select("discount_cents").eq("id", comandaId).single();
