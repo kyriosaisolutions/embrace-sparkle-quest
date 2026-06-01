@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { searchTenants } from "@/lib/functions/marketplace";
+import { searchTenants } from "@/lib/functions/marketplace.functions";
 
 export const Route = createFileRoute("/buscar")({
   component: SearchPage,

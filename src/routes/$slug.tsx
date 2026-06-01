@@ -40,11 +40,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { getTenantBySlug, getTenantReviews } from "@/lib/functions/tenants";
-import { createAppointment } from "@/lib/functions/appointments";
-import { validateCoupon } from "@/lib/functions/coupons";
-import { lookupGiftCard } from "@/lib/functions/giftcards";
-import { getClientPackages } from "@/lib/functions/packages";
+import { getTenantBySlug, getTenantReviews } from "@/lib/functions/tenants.functions";
+import { createAppointment } from "@/lib/functions/appointments.functions";
+import { validateCoupon } from "@/lib/functions/coupons.functions";
+import { lookupGiftCard } from "@/lib/functions/giftcards.functions";
+import { getClientPackages } from "@/lib/functions/packages.functions";
 
 export const Route = createFileRoute("/$slug")({
   component: TenantPublicPage,
