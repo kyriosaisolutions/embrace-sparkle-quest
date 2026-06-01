@@ -36,7 +36,7 @@ function LandingPage() {
           </div>
           <div className="flex gap-4">
             <Button variant="ghost" asChild>
-              <Link to="/admin/login">Entrar como Admin</Link>
+              <Link to="/admin-login">Entrar como Admin</Link>
             </Button>
             <Button asChild>
               <Link to="/barbearia-joao">Ver Demo Pública</Link>
@@ -57,7 +57,7 @@ function LandingPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-4 pt-4">
             <Button size="lg" className="h-14 px-8 text-lg font-bold gap-2" asChild>
-              <Link to="/admin/login">Começar Agora <ArrowRight className="w-5 h-5" /></Link>
+              <Link to="/admin-login">Começar Agora <ArrowRight className="w-5 h-5" /></Link>
             </Button>
             <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-bold" asChild>
               <Link to="/barbearia-joao">Ver Exemplo de Salão</Link>
@@ -118,7 +118,7 @@ function LandingPage() {
               ))}
             </ul>
             <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
-              <Link to="/admin/login">Acessar Painel Admin</Link>
+              <Link to="/admin-login">Acessar Painel Admin</Link>
             </Button>
           </div>
           <div className="flex-1 bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-2xl overflow-hidden">

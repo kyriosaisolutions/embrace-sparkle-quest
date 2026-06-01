@@ -344,7 +344,7 @@ function CadastroPage() {
 
         <p className="text-center text-sm text-muted-foreground">
           Já tem uma conta?{" "}
-          <a href="/admin/login" className="text-primary hover:underline">Entrar</a>
+          <a href="/admin-login" className="text-primary hover:underline">Entrar</a>
         </p>
       </div>
     </div>

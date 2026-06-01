@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/admin/login")({
+export const Route = createFileRoute("/admin-login")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
     const { data: { session } } = await supabase.auth.getSession();

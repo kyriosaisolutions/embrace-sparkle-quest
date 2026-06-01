@@ -110,7 +110,7 @@ export const Route = createFileRoute("/admin")({
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw redirect({ to: "/admin/login" });
+    if (!session) throw redirect({ to: "/admin-login" });
   },
   component: AdminAgendaPage,
 });
@@ -154,7 +154,7 @@ function AdminAgendaPage() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate({ to: "/admin/login" });
+    navigate({ to: "/admin-login" });
   };
   const [view, setView] = useState<"day" | "week">("day");
   const [selectedDate, setSelectedDate] = useState(new Date());

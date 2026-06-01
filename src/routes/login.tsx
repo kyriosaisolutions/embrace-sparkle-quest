@@ -93,7 +93,7 @@ function CustomerLoginPage() {
 
         <p className="text-center text-sm text-muted-foreground">
           É profissional ou dono de salão?{" "}
-          <a href="/admin/login" className="text-primary hover:underline">
+          <a href="/admin-login" className="text-primary hover:underline">
             Acesse o painel admin
           </a>
         </p>
