@@ -85,23 +85,14 @@ function CadastroPage() {
       });
       if (authError) throw authError;
 
-      const fullAddress = [location.address, location.complement, location.city, location.state]
-        .filter(Boolean).join(", ");
-
       const { data: tenant, error: tenantError } = await supabase
         .from("tenants")
         .insert({
           name: business.salonName,
           slug: business.slug.toLowerCase().replace(/\s+/g, "-"),
-          phone: business.phone,
-          description: business.description,
-          address: fullAddress,
-          city: location.city,
-          state: location.state,
-          zip_code: location.cep,
           working_hours: workingHours,
-          payment_methods: ["pix"],
-          cancellation_hours: 2,
+          payment_methods_local: ["pix"],
+          cancellation_min_hours: 2,
           slot_interval_minutes: 30,
         })
         .select("id")
@@ -111,15 +102,19 @@ function CadastroPage() {
       await supabase.from("professionals").insert({
         tenant_id: tenant.id,
         name: account.name,
+        email: account.email,
+        phone: business.phone,
         access_level: "owner",
-        active: true,
+        is_active: true,
       });
 
+      const priceBrl = parseFloat(service.price.replace(",", "."));
       await supabase.from("services").insert({
         tenant_id: tenant.id,
         name: service.name,
         category: service.category,
-        price_cents: Math.round(parseFloat(service.price.replace(",", ".")) * 100),
+        price: priceBrl,
+        price_cents: Math.round(priceBrl * 100),
         duration_minutes: parseInt(service.duration),
         enabled: true,
         sort_order: 0,

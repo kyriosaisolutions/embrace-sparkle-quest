@@ -83,9 +83,18 @@ function MyAreaPage() {
       if (existing) {
         setClientId(existing.id);
       } else {
+        // Pick any tenant to satisfy NOT NULL fk; client record is per-tenant
+        // in this schema, so the row will be auto-linked on first booking.
+        const { data: anyTenant } = await supabase
+          .from("tenants")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+        if (!anyTenant) return;
         const { data: created } = await supabase
           .from("clients")
           .insert({
+            tenant_id: anyTenant.id,
             name: user.user_metadata?.full_name || user.email || "Cliente",
             email: user.email,
             google_id: user.id,

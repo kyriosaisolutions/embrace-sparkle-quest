@@ -30,9 +30,9 @@ export const upsertWorkingHours = createServerFn({ method: "POST" })
     const rows = data.hours.map(h => ({
       professional_id: data.professional_id,
       day_of_week: h.day_of_week,
-      starts_at: h.open,
-      ends_at: h.close,
-      closed: h.closed,
+      open_time: h.open ?? "00:00",
+      close_time: h.close ?? "00:00",
+      is_closed: h.closed,
     }));
     const { error } = await supabase.from("professional_working_hours").insert(rows);
     if (error) throw error;
@@ -46,7 +46,7 @@ export const listBreaks = createServerFn({ method: "GET" })
       .from("professional_breaks")
       .select("*")
       .eq("professional_id", professionalId)
-      .order("starts_at");
+      .order("start_at");
     return data ?? [];
   });
 
@@ -58,7 +58,12 @@ export const addBreak = createServerFn({ method: "POST" })
     reason: z.string().optional(),
   }))
   .handler(async ({ data }) => {
-    const { error } = await supabase.from("professional_breaks").insert(data);
+    const { error } = await supabase.from("professional_breaks").insert({
+      professional_id: data.professional_id,
+      start_at: data.starts_at,
+      end_at: data.ends_at,
+      description: data.reason,
+    });
     if (error) throw error;
     return { ok: true };
   });

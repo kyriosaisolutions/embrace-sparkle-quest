@@ -39,7 +39,7 @@ function LandingPage() {
               <Link to="/admin-login">Entrar como Admin</Link>
             </Button>
             <Button asChild>
-              <Link to="/barbearia-joao">Ver Demo Pública</Link>
+              <Link to="/$slug" params={{ slug: "barbearia-demo" }}>Ver Demo Pública</Link>
             </Button>
           </div>
         </div>
@@ -60,7 +60,7 @@ function LandingPage() {
               <Link to="/admin-login">Começar Agora <ArrowRight className="w-5 h-5" /></Link>
             </Button>
             <Button size="lg" variant="outline" className="h-14 px-8 text-lg font-bold" asChild>
-              <Link to="/barbearia-joao">Ver Exemplo de Salão</Link>
+              <Link to="/$slug" params={{ slug: "barbearia-demo" }}>Ver Exemplo de Salão</Link>
             </Button>
           </div>
         </div>
