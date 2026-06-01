@@ -103,7 +103,7 @@ function CadastroPage() {
           payment_methods: ["pix"],
           cancellation_hours: 2,
           slot_interval_minutes: 30,
-        })
+        } as any)
         .select("id")
         .single();
       if (tenantError) throw tenantError;
@@ -112,13 +112,14 @@ function CadastroPage() {
         tenant_id: tenant.id,
         name: account.name,
         access_level: "owner",
-        active: true,
-      });
+        is_active: true,
+      } as any);
 
       await supabase.from("services").insert({
         tenant_id: tenant.id,
         name: service.name,
         category: service.category,
+        price: parseFloat(service.price.replace(",", ".")),
         price_cents: Math.round(parseFloat(service.price.replace(",", ".")) * 100),
         duration_minutes: parseInt(service.duration),
         enabled: true,
