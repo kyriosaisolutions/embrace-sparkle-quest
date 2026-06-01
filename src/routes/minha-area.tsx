@@ -89,7 +89,7 @@ function MyAreaPage() {
             name: user.user_metadata?.full_name || user.email || "Cliente",
             email: user.email,
             google_id: user.id,
-          })
+          } as any)
           .select("id")
           .single();
         if (created) setClientId(created.id);
